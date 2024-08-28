@@ -212,6 +212,12 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 
 	if not is_command_registered(command_name):
 		error("Unknown command: " + command_name)
+		var fuzzy_hit: String = _fuzzy_match_command(command_name, 2)
+		if fuzzy_hit:
+			info("Did you mean %s? ([b]TAB[/b] to fill)" % [_format_name(fuzzy_hit)])
+			var suggest_command: String = fuzzy_hit + " " + " ".join(argv.slice(1, argv.size()))
+			suggest_command = suggest_command.strip_edges()
+			_autocomplete_matches.append.call_deferred(suggest_command)
 		return
 
 	var dealiased_name: String = _command_aliases.get(command_name, command_name)
@@ -403,6 +409,63 @@ func _autocomplete() -> void:
 		_fill_command_line(match)
 		_autocomplete_matches.remove_at(0)
 		_autocomplete_matches.push_back(match)
+
+
+func _fuzzy_match_command(p_name: String, p_max_edit_distance: int) -> String:
+	var command_names: PackedStringArray = _commands.keys()
+	command_names.append_array(_command_aliases.keys())
+	command_names.sort()
+	var best_distance: int = 9223372036854775807
+	var best_name: String = ""
+	for n: String in command_names:
+		var dist: float = _calculate_osa_distance(p_name, n)
+		if dist < best_distance:
+			best_distance = dist
+			best_name = n
+	# debug("Best %s: %d" % [best_name, best_distance])
+	return best_name if best_distance <= p_max_edit_distance else ""
+
+
+## Calculate optimal string alignment distance [br]
+## See: https://en.wikipedia.org/wiki/Levenshtein_distance
+func _calculate_osa_distance(s1: String, s2: String) -> int:
+	var s1_len: int = s1.length()
+	var s2_len: int = s2.length()
+
+	# Iterative approach with 3 matrix rows.
+	# Most of the work is done on row1 and row2 - row0 is only needed to calculate transpostition cost.
+	var row0: PackedInt32Array # previos-previous
+	var row1: PackedInt32Array # previous
+	var row2: PackedInt32Array # current aka the one we need to calculate
+	row0.resize(s2_len + 1)
+	row1.resize(s2_len + 1)
+	row2.resize(s2_len + 1)
+
+	# edit distance is the number of characters to insert to get from empty string to s2
+	for i in range(s2_len + 1):
+		row1[i] = i
+
+	for i in range(s1_len):
+		# edit distance is the number of characters to delete from s1 to match empty s2
+		row2[0] = i + 1
+
+		for j in range(s2_len):
+			var deletion_cost: int = row1[j + 1] + 1
+			var insertion_cost: int = row2[j] + 1
+			var substitution_cost: int = row1[j] if s1[i] == s2[j] else row1[j] + 1
+
+			row2[j + 1] = min(deletion_cost, insertion_cost, substitution_cost)
+
+			if i > 1 and j > 1 and s1[i - 1] == s2[j] and s1[i - 1] == s2[j]:
+				var transposition_cost: int = row0[j - 1] + 1
+				row2[j + 1] = mini(transposition_cost, row2[j + 1])
+
+		# Swap rows.
+		var tmp: PackedInt32Array = row0
+		row0 = row1
+		row1 = row2
+		row2 = tmp
+	return row1[s2_len]
 
 
 func _on_command_line_submitted(p_command: String) -> void:
