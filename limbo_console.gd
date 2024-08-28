@@ -327,31 +327,45 @@ func _get_method_info(p_callable: Callable) -> Dictionary:
 func _usage(p_command_name: String) -> void:
 	var dealiased_name: String = _command_aliases.get(p_command_name, p_command_name)
 	if dealiased_name != p_command_name:
-		info("Alias of " + _format_name(dealiased_name) + ".")
-	var usage_line: String = "Usage: %s" % [dealiased_name]
-	var arg_lines: String = ""
-	var desc: String = ""
+		print_line("Alias of " + _format_name(dealiased_name) + ".")
+
 	var callable: Callable = _commands[dealiased_name]
 	var method_info: Dictionary = _get_method_info(callable)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + callable.get_method())
 		print_line("Usage: ???")
 		return
+
+	var usage_line: String = "Usage: %s" % [dealiased_name]
+	var arg_lines: String = ""
 	var required_args: int = method_info.args.size() - method_info.default_args.size()
+
 	for i in range(method_info.args.size()):
 		var arg_name: String = method_info.args[i].name.trim_prefix("p_")
+		var arg_type: int = method_info.args[i].type
 		if i < required_args:
 			usage_line += " " + arg_name
 		else:
 			usage_line += " [lb]" + arg_name + "[rb]"
-		arg_lines += "\t%s: %s\n" % [arg_name, type_string(method_info.args[i].type)]
+		var def_spec: String = ""
+		var num_required_args: int = method_info.args.size() - method_info.default_args.size()
+		if i >= num_required_args:
+			var def_value = method_info.default_args[i - num_required_args]
+			if typeof(def_value) == TYPE_STRING:
+				def_value = "\"" + def_value + "\""
+			def_spec = " = %s" % [def_value]
+		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(method_info.args[i].type), def_spec]
+
 	print_line(usage_line)
-	desc = _command_descriptions.get(dealiased_name, "")
-	if not desc.is_empty():
-		desc[0] = desc[0].capitalize()
-		if desc.right(1) != ".":
-			desc += "."
-		print_line(desc)
+
+	var desc_line: String = ""
+	desc_line = _command_descriptions.get(dealiased_name, "")
+	if not desc_line.is_empty():
+		desc_line[0] = desc_line[0].capitalize()
+		if desc_line.right(1) != ".":
+			desc_line += "."
+		print_line(desc_line)
+
 	if not arg_lines.is_empty():
 		print_line("Arguments:")
 		print_line(arg_lines)
