@@ -62,7 +62,7 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("limbo_console_toggle"):
 		toggle_console()
 		get_viewport().set_input_as_handled()
-	elif event is InputEventKey and event.is_pressed():
+	elif _console_control.visible and event is InputEventKey and event.is_pressed():
 		var handled := true
 		if event.keycode == KEY_UP:
 			_hist_idx += 1
