@@ -10,7 +10,6 @@ var _console_control: Control
 var _content: RichTextLabel
 var _command_line: LineEdit
 
-var _theme: Theme
 var _color_command: Color
 var _color_command_line: Color
 var _color_command_mention: Color
@@ -110,20 +109,21 @@ func _build_gui() -> void:
 
 
 func _init_theme() -> void:
+	var theme: Theme
 	if ResourceLoader.exists(THEME_CUSTOM, "Theme"):
-		_theme = load(THEME_CUSTOM)
+		theme = load(THEME_CUSTOM)
 	else:
-		_theme = load(THEME_DEFAULT)
-	_console_control.theme = _theme
+		theme = load(THEME_DEFAULT)
+	_console_control.theme = theme
 
 	const CONSOLE_COLORS_THEME_TYPE := &"ConsoleColors"
-	_color_command = _theme.get_color(&"command_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_command_line = _theme.get_color(&"command_line_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_command_mention = _theme.get_color(&"command_mention_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_text = _theme.get_color(&"text_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_error = _theme.get_color(&"error_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_warning = _theme.get_color(&"warning_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_debug = _theme.get_color(&"debug_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_command = theme.get_color(&"command_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_command_line = theme.get_color(&"command_line_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_command_mention = theme.get_color(&"command_mention_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_text = theme.get_color(&"text_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_error = theme.get_color(&"error_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_warning = theme.get_color(&"warning_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_debug = theme.get_color(&"debug_color", CONSOLE_COLORS_THEME_TYPE)
 
 	_content.add_theme_color_override(&"default_color", _color_text)
 	_command_line.add_theme_color_override(&"font_color", _color_command_line)
