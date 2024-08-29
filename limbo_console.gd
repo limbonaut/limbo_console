@@ -3,7 +3,8 @@ extends CanvasLayer
 
 signal toggled(is_shown)
 
-const CONSOLE_THEME := preload("res://addons/limbo_console/res/console_theme.tres")
+const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
+const THEME_CUSTOM := "res://addons/limbo_console/res/custom_theme.tres"
 
 var _console_control: Control
 var _content: RichTextLabel
@@ -22,8 +23,12 @@ func _init() -> void:
 	process_mode = ProcessMode.PROCESS_MODE_ALWAYS
 
 	_build_gui()
-	_console_control.theme = CONSOLE_THEME
 	_console_control.hide()
+
+	if ResourceLoader.exists(THEME_CUSTOM, "Theme"):
+		_console_control.theme = load(THEME_CUSTOM)
+	else:
+		_console_control.theme = load(THEME_DEFAULT)
 
 	_command_line.text_submitted.connect(_on_command_line_submitted)
 	_command_line.text_changed.connect(_on_command_line_changed)
