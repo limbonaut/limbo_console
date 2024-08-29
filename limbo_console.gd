@@ -70,6 +70,12 @@ func _input(event: InputEvent) -> void:
 			_fill_from_history()
 		elif event.keycode == KEY_TAB:
 			_autocomplete()
+		elif event.keycode == KEY_PAGEUP:
+			var scroll_bar: VScrollBar = _content.get_v_scroll_bar()
+			scroll_bar.value -= scroll_bar.page
+		elif event.keycode == KEY_PAGEDOWN:
+			var scroll_bar: VScrollBar = _content.get_v_scroll_bar()
+			scroll_bar.value += scroll_bar.page
 		else:
 			handled = false
 		if handled:
