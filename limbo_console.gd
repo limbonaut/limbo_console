@@ -50,6 +50,7 @@ func _init() -> void:
 	register_command(_cmd_fps_max, "fps_max", "limit framerate")
 	register_command(_cmd_fullscreen, "fullscreen", "toggle fullscreen mode")
 	register_command(_cmd_quit, "quit", "exit the application")
+	register_command(_cmd_vsync, "vsync", "adjust V-Sync")
 
 	add_alias("usage", "help")
 	add_alias("exit", "quit")
@@ -584,3 +585,27 @@ func _cmd_help(p_command_name: String = "") -> void:
 
 func _cmd_quit() -> void:
 	get_tree().quit()
+
+
+func _cmd_vsync(p_mode: int = -1) -> void:
+	if p_mode < 0:
+		var current: int = DisplayServer.window_get_vsync_mode()
+		if current == 0:
+			info("V-Sync: disabled.")
+		elif current == 1:
+			info('V-Sync: enabled.')
+		elif current == 2:
+			info('Current V-Sync mode: adaptive.')
+		info("Adjust V-Sync mode with an argument: 0 - disabled, 1 - enabled, 2 - adaptive.")
+	elif p_mode == DisplayServer.VSYNC_DISABLED:
+		info("Changing to disabled.")
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	elif p_mode == DisplayServer.VSYNC_ENABLED:
+		info("Changing to default V-Sync.")
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
+	elif p_mode == DisplayServer.VSYNC_ADAPTIVE:
+		info("Changing to adaptive V-Sync.")
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ADAPTIVE)
+	else:
+		error("Invalid mode.")
+		info("Acceptable modes: 0 - disabled, 1 - enabled, 2 - adaptive.")
