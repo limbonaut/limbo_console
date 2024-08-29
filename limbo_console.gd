@@ -10,6 +10,15 @@ var _console_control: Control
 var _content: RichTextLabel
 var _command_line: LineEdit
 
+var _theme: Theme
+var _color_command: Color
+var _color_command_line: Color
+var _color_command_mention: Color
+var _color_error: Color
+var _color_warning: Color
+var _color_text: Color
+var _color_debug: Color
+
 var _commands: Dictionary
 var _command_aliases: Dictionary
 var _command_descriptions: Dictionary
@@ -23,12 +32,8 @@ func _init() -> void:
 	process_mode = ProcessMode.PROCESS_MODE_ALWAYS
 
 	_build_gui()
+	_init_theme()
 	_console_control.hide()
-
-	if ResourceLoader.exists(THEME_CUSTOM, "Theme"):
-		_console_control.theme = load(THEME_CUSTOM)
-	else:
-		_console_control.theme = load(THEME_DEFAULT)
 
 	_command_line.text_submitted.connect(_on_command_line_submitted)
 	_command_line.text_changed.connect(_on_command_line_changed)
@@ -96,6 +101,26 @@ func _build_gui() -> void:
 	vbox.add_child(_command_line)
 
 
+func _init_theme() -> void:
+	if ResourceLoader.exists(THEME_CUSTOM, "Theme"):
+		_theme = load(THEME_CUSTOM)
+	else:
+		_theme = load(THEME_DEFAULT)
+	_console_control.theme = _theme
+
+	const CONSOLE_COLORS_THEME_TYPE := &"ConsoleColors"
+	_color_command = _theme.get_color(&"command_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_command_line = _theme.get_color(&"command_line_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_command_mention = _theme.get_color(&"command_mention_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_text = _theme.get_color(&"text_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_error = _theme.get_color(&"error_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_warning = _theme.get_color(&"warning_color", CONSOLE_COLORS_THEME_TYPE)
+	_color_debug = _theme.get_color(&"debug_color", CONSOLE_COLORS_THEME_TYPE)
+
+	_content.add_theme_color_override(&"default_color", _color_text)
+	_command_line.add_theme_color_override(&"font_color", _color_command_line)
+
+
 func show_console() -> void:
 	if not _console_control.visible:
 		_console_control.show()
@@ -127,15 +152,15 @@ func info(p_line: String) -> void:
 
 
 func error(p_line: String) -> void:
-	print_line("[b][color=red]ERROR:[/color][/b] " + p_line)
+	print_line("[color=%s]ERROR:[/color] %s" % [_color_error.to_html(), p_line])
 
 
 func warn(p_line: String) -> void:
-	print_line("[color=yellow]WARNING:[/color] " + p_line)
+	print_line("[color=%s]WARNING:[/color] %s" % [_color_warning.to_html(), p_line])
 
 
 func debug(p_line: String) -> void:
-	print_line("[color=gray]DEBUG: " + p_line + "[/color]")
+	print_line("[color=%s]DEBUG: %s[/color]" % [_color_debug.to_html(), p_line])
 
 
 func print_line(p_line: String) -> void:
@@ -204,7 +229,8 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 
 	_push_history(" ".join(argv))
 	if not p_silent:
-		info("[color=green][b]>[/b] " + command_name + "[/color] " + " ".join(argv.slice(1, argv.size())))
+		info("[color=%s][b]>[/b] %s[/color] %s" %
+				[_color_command.to_html(), command_name, " ".join(argv.slice(1, argv.size()))])
 
 	if not is_command_registered(command_name):
 		error("Unknown command: " + command_name)
@@ -518,8 +544,8 @@ func _cmd_quit() -> void:
 
 
 func _format_name(p_name: String) -> String:
-	return "[color=cyan]" + p_name + "[/color]"
+	return "[color=" + _color_command_mention.to_html() + "]" + p_name + "[/color]"
 
 
 func _format_tip(p_text: String) -> String:
-	return "[i][color=gray]" + p_text + "[/color][/i]"
+	return "[i][color=" + _color_debug.to_html() + "]" + p_text + "[/color][/i]"
