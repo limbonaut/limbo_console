@@ -151,32 +151,39 @@ func toggle_console() -> void:
 		show_console()
 
 
+## Clears all messages in the console.
 func clear_console() -> void:
 	_content.text = ""
 
 
+## Prints an info message to the console and the output.
 func info(p_line: String) -> void:
-	print_line(p_line)
+	_print_line(p_line)
 
 
+## Prints an error message to the console and the output.
 func error(p_line: String) -> void:
-	print_line("[color=%s]ERROR:[/color] %s" % [_color_error.to_html(), p_line])
+	_print_line("[color=%s]ERROR:[/color] %s" % [_color_error.to_html(), p_line])
 
 
+## Prints a warning message to the console and the output.
 func warn(p_line: String) -> void:
-	print_line("[color=%s]WARNING:[/color] %s" % [_color_warning.to_html(), p_line])
+	_print_line("[color=%s]WARNING:[/color] %s" % [_color_warning.to_html(), p_line])
 
 
+## Prints a debug message to the console and the output.
 func debug(p_line: String) -> void:
-	print_line("[color=%s]DEBUG: %s[/color]" % [_color_debug.to_html(), p_line])
+	_print_line("[color=%s]DEBUG: %s[/color]" % [_color_debug.to_html(), p_line])
 
 
-func print_line(p_line: String) -> void:
+func _print_line(p_line: String) -> void:
 	var line: String = p_line + "\n"
 	_content.text += line
 	print_rich(line.strip_edges())
 
 
+## Registers a new command for the specified callable. [br]
+## Optionally, you can provide a name and a description.
 func register_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
 	if not _validate_callable(p_func):
 		error("Failed to register command: %s" % [p_func if p_name.is_empty() else p_name])
@@ -193,6 +200,7 @@ func register_command(p_func: Callable, p_name: String = "", p_desc: String = ""
 	_command_descriptions[name] = p_desc
 
 
+## Unregisters the command specified by its name or a callable.
 func unregister_command(p_func_or_name) -> void:
 	var cmd_name: String
 	if p_func_or_name is Callable:
@@ -208,10 +216,12 @@ func unregister_command(p_func_or_name) -> void:
 	_command_descriptions.erase(cmd_name)
 
 
+## Is a command or an alias registered by the given name.
 func is_command_registered(p_name: String) -> bool:
 	return _commands.has(p_name) or _command_aliases.has(p_name)
 
 
+## Adds an alias for an existing command.
 func add_alias(p_alias: String, p_existing: String) -> void:
 	if is_command_registered(p_alias):
 		error("Command or alias already registered: " + p_alias)
@@ -222,10 +232,12 @@ func add_alias(p_alias: String, p_existing: String) -> void:
 	_command_aliases[p_alias] = p_existing
 
 
-func remove_alias(p_alias: String) -> void:
-	_command_aliases.erase(p_alias)
+## Removes an alias by name.
+func remove_alias(p_name: String) -> void:
+	_command_aliases.erase(p_name)
 
 
+## Parses the command line and executes the command if it's valid.
 func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	p_command_line = p_command_line.strip_edges()
 	if p_command_line.is_empty():
@@ -255,6 +267,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		_usage(command_name)
 
 
+## Splits the command line string into an array of arguments (aka argv).
 func _parse_command_line(p_line: String) -> PackedStringArray:
 	var argv: PackedStringArray = []
 	var arg: String = ""
@@ -275,7 +288,8 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 	return argv
 
 
-## Returns true if valid, also returns r_args array with converted arguments.
+## Converts arguments from String to types expected by the callable, and returns true if successful.
+## The converted values are placed into a separate r_args array.
 func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array) -> bool:
 	var passed := true
 
@@ -323,6 +337,7 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 	return passed
 
 
+## Returns true if the parsed type is compatible with the expected type.
 func _are_compatible_types(p_expected_type: int, p_parsed_type: int) -> bool:
 	return p_expected_type == p_parsed_type or \
 		p_expected_type == TYPE_NIL or \
@@ -330,6 +345,7 @@ func _are_compatible_types(p_expected_type: int, p_parsed_type: int) -> bool:
 		p_expected_type in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT] and p_parsed_type in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT]
 
 
+## Returns true if the callable can be registered as a command.
 func _validate_callable(p_callable: Callable) -> bool:
 	var method_info: Dictionary = _get_method_info(p_callable)
 	if method_info.is_empty():
@@ -355,6 +371,7 @@ func _get_method_info(p_callable: Callable) -> Dictionary:
 	return method_info
 
 
+## Prints the help text for the given command.
 func _usage(p_command_name: String) -> void:
 	if not is_command_registered(p_command_name):
 		error("Command not found: " + _format_name(p_command_name))
@@ -363,13 +380,13 @@ func _usage(p_command_name: String) -> void:
 
 	var dealiased_name: String = _command_aliases.get(p_command_name, p_command_name)
 	if dealiased_name != p_command_name:
-		print_line("Alias of " + _format_name(dealiased_name) + ".")
+		_print_line("Alias of " + _format_name(dealiased_name) + ".")
 
 	var callable: Callable = _commands[dealiased_name]
 	var method_info: Dictionary = _get_method_info(callable)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + callable.get_method())
-		print_line("Usage: ???")
+		_print_line("Usage: ???")
 		return
 
 	var usage_line: String = "Usage: %s" % [dealiased_name]
@@ -392,7 +409,7 @@ func _usage(p_command_name: String) -> void:
 			def_spec = " = %s" % [def_value]
 		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(method_info.args[i].type), def_spec]
 
-	print_line(usage_line)
+	_print_line(usage_line)
 
 	var desc_line: String = ""
 	desc_line = _command_descriptions.get(dealiased_name, "")
@@ -400,16 +417,17 @@ func _usage(p_command_name: String) -> void:
 		desc_line[0] = desc_line[0].capitalize()
 		if desc_line.right(1) != ".":
 			desc_line += "."
-		print_line(desc_line)
+		_print_line(desc_line)
 
 	if not arg_lines.is_empty():
-		print_line("Arguments:")
-		print_line(arg_lines)
+		_print_line("Arguments:")
+		_print_line(arg_lines)
 
 
 func _fill_command_line(p_line: String) -> void:
 	_command_line.text = p_line
 	_command_line.set_deferred(&"caret_column", p_line.length())
+
 
 func _fill_from_history() -> void:
 	_hist_idx = clampi(_hist_idx, -1, _history.size() - 1)
@@ -427,6 +445,7 @@ func _push_history(p_line: String) -> void:
 	_hist_idx = -1
 
 
+## Auto-completes a command or auto-correction on TAB.
 func _autocomplete() -> void:
 	if _autocomplete_matches.is_empty():
 		var entry: String = _command_line.text
@@ -441,7 +460,7 @@ func _autocomplete() -> void:
 		_autocomplete_matches.push_back(match)
 
 
-## Suggest similar command to the user with auto-filling.
+## Suggests a similar command to the user and prepares the auto-correction on TAB.
 func _suggest_similar(p_argv: PackedStringArray, p_command_index: int = 0) -> void:
 	var fuzzy_hit: String = _fuzzy_match_command(p_argv[p_command_index], 2)
 	if fuzzy_hit:
@@ -453,6 +472,7 @@ func _suggest_similar(p_argv: PackedStringArray, p_command_index: int = 0) -> vo
 		_autocomplete_matches.append.call_deferred(suggest_command)
 
 
+## Finds a command with a similar name.
 func _fuzzy_match_command(p_name: String, p_max_edit_distance: int) -> String:
 	var command_names: PackedStringArray = _commands.keys()
 	command_names.append_array(_command_aliases.keys())
@@ -468,7 +488,7 @@ func _fuzzy_match_command(p_name: String, p_max_edit_distance: int) -> String:
 	return best_name if best_distance <= p_max_edit_distance else ""
 
 
-## Calculate optimal string alignment distance [br]
+## Calculates optimal string alignment distance [br]
 ## See: https://en.wikipedia.org/wiki/Levenshtein_distance
 func _calculate_osa_distance(s1: String, s2: String) -> int:
 	var s1_len: int = s1.length()
@@ -510,10 +530,12 @@ func _calculate_osa_distance(s1: String, s2: String) -> int:
 	return row1[s2_len]
 
 
+## Formats the command name for display.
 func _format_name(p_name: String) -> String:
 	return "[color=" + _color_command_mention.to_html() + "]" + p_name + "[/color]"
 
 
+## Formats the helpful tip text (hopefully).
 func _format_tip(p_text: String) -> String:
 	return "[i][color=" + _color_debug.to_html() + "]" + p_text + "[/color][/i]"
 
@@ -528,7 +550,7 @@ func _on_command_line_changed(p_line: String) -> void:
 	_autocomplete_matches.clear()
 
 
-# *** COMMANDS
+# *** BUILT-IN COMMANDS
 
 
 func _cmd_aliases() -> void:
@@ -577,8 +599,8 @@ func _cmd_fullscreen() -> void:
 
 func _cmd_help(p_command_name: String = "") -> void:
 	if p_command_name.is_empty():
-		print_line(_format_tip("Type %s to list all available commands." % [_format_name("commands")]))
-		print_line(_format_tip("Type %s to get more info about the command." % [_format_name("help command")]))
+		_print_line(_format_tip("Type %s to list all available commands." % [_format_name("commands")]))
+		_print_line(_format_tip("Type %s to get more info about the command." % [_format_name("help command")]))
 	else:
 		_usage(p_command_name)
 
