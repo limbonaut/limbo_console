@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://dbbw833hg2v7o"
-path="res://.godot/imported/monaspace_argon_bold.otf-dc3ef047e7095e17ac53dc7fce84b91c.fontdata"
+uid="uid://dhm45nttm5i3s"
+path="res://.godot/imported/monaspace_argon_italic.otf-69d64783adde526699a99a191cd14ed6.fontdata"
 
 [deps]
 
-source_file="res://addons/limbo_console/res/monaspace_argon_bold.otf"
-dest_files=["res://.godot/imported/monaspace_argon_bold.otf-dc3ef047e7095e17ac53dc7fce84b91c.fontdata"]
+source_file="res://addons/limbo_console/res/fonts/monaspace_argon_italic.otf"
+dest_files=["res://.godot/imported/monaspace_argon_italic.otf-69d64783adde526699a99a191cd14ed6.fontdata"]
 
 [params]
 

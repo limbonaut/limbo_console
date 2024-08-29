@@ -3,11 +3,7 @@ extends CanvasLayer
 
 signal toggled(is_shown)
 
-const FONT_NORMAL := preload("res://addons/limbo_console/res/monaspace_argon_regular.otf")
-const FONT_BOLD := preload("res://addons/limbo_console/res/monaspace_argon_bold.otf")
-const FONT_ITALIC := preload("res://addons/limbo_console/res/monaspace_argon_italic.otf")
-const FONT_BOLD_ITALIC := preload("res://addons/limbo_console/res/monaspace_argon_bold_italic.otf")
-const FONT_MONO := preload("res://addons/limbo_console/res/monaspace_argon_medium.otf")
+const CONSOLE_THEME := preload("res://addons/limbo_console/res/console_theme.tres")
 
 var _console_control: Control
 var _content: RichTextLabel
@@ -26,7 +22,7 @@ func _init() -> void:
 	process_mode = ProcessMode.PROCESS_MODE_ALWAYS
 
 	_build_gui()
-
+	_console_control.theme = CONSOLE_THEME
 	_console_control.hide()
 
 	_command_line.text_submitted.connect(_on_command_line_submitted)
@@ -89,15 +85,9 @@ func _build_gui() -> void:
 	# _content.selection_enabled = true
 	# _content.context_menu_enabled = true
 	_content.focus_mode = Control.FOCUS_CLICK
-	_content.add_theme_font_override("normal_font", FONT_NORMAL)
-	_content.add_theme_font_override("bold_font", FONT_BOLD)
-	_content.add_theme_font_override("italics_font", FONT_ITALIC)
-	_content.add_theme_font_override("bold_italics_font", FONT_BOLD_ITALIC)
-	_content.add_theme_font_override("mono_font", FONT_MONO)
 	vbox.add_child(_content)
 
 	_command_line = LineEdit.new()
-	_command_line.add_theme_font_override("font", FONT_NORMAL)
 	vbox.add_child(_command_line)
 
 

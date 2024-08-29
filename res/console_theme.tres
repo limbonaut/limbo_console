@@ -1,0 +1,17 @@
+[gd_resource type="Theme" load_steps=6 format=3 uid="uid://bhewbs2xknytb"]
+
+[ext_resource type="FontFile" uid="uid://dbbw833hg2v7o" path="res://addons/limbo_console/res/fonts/monaspace_argon_bold.otf" id="1_cry2i"]
+[ext_resource type="FontFile" uid="uid://dmeyp84repfbw" path="res://addons/limbo_console/res/fonts/monaspace_argon_bold_italic.otf" id="2_h3f73"]
+[ext_resource type="FontFile" uid="uid://dhm45nttm5i3s" path="res://addons/limbo_console/res/fonts/monaspace_argon_italic.otf" id="3_2qq11"]
+[ext_resource type="FontFile" uid="uid://ds7dvyquauqub" path="res://addons/limbo_console/res/fonts/monaspace_argon_medium.otf" id="4_06w3f"]
+[ext_resource type="FontFile" uid="uid://d4js20k8kslqt" path="res://addons/limbo_console/res/fonts/monaspace_argon_regular.otf" id="5_p4ppy"]
+
+[resource]
+default_font = ExtResource("5_p4ppy")
+default_font_size = 20
+LineEdit/fonts/font = ExtResource("5_p4ppy")
+RichTextLabel/fonts/bold_font = ExtResource("1_cry2i")
+RichTextLabel/fonts/bold_italics_font = ExtResource("2_h3f73")
+RichTextLabel/fonts/italics_font = ExtResource("3_2qq11")
+RichTextLabel/fonts/mono_font = ExtResource("4_06w3f")
+RichTextLabel/fonts/normal_font = ExtResource("5_p4ppy")
