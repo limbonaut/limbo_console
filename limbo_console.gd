@@ -42,11 +42,12 @@ func _init() -> void:
 	_cmd_help()
 	info(_format_tip("-----"))
 
-	register_command(info, "echo", "display a line of text")
 	register_command(_cmd_aliases, "aliases", "list all aliases")
-	register_command(_cmd_commands, "commands", "list all commands")
-	register_command(_cmd_help, "help", "show command info")
 	register_command(clear_console, "clear", "clear console screen")
+	register_command(_cmd_commands, "commands", "list all commands")
+	register_command(info, "echo", "display a line of text")
+	register_command(_cmd_help, "help", "show command info")
+	register_command(_cmd_fps_max, "fps_max", "limit framerate")
 	register_command(_cmd_fullscreen, "fullscreen", "toggle fullscreen mode")
 	register_command(_cmd_quit, "quit", "exit the application")
 
@@ -508,6 +509,14 @@ func _calculate_osa_distance(s1: String, s2: String) -> int:
 	return row1[s2_len]
 
 
+func _format_name(p_name: String) -> String:
+	return "[color=" + _color_command_mention.to_html() + "]" + p_name + "[/color]"
+
+
+func _format_tip(p_text: String) -> String:
+	return "[i][color=" + _color_debug.to_html() + "]" + p_text + "[/color][/i]"
+
+
 func _on_command_line_submitted(p_command: String) -> void:
 	execute_command(p_command)
 	_fill_command_line("")
@@ -516,6 +525,9 @@ func _on_command_line_submitted(p_command: String) -> void:
 
 func _on_command_line_changed(p_line: String) -> void:
 	_autocomplete_matches.clear()
+
+
+# *** COMMANDS
 
 
 func _cmd_aliases() -> void:
@@ -535,6 +547,21 @@ func _cmd_commands() -> void:
 	for name in command_names:
 		var desc: String = _command_descriptions.get(name, "")
 		info(_format_name(name) if desc.is_empty() else "%s -- %s" % [_format_name(name), desc])
+
+
+func _cmd_fps_max(p_limit: int = -1) -> void:
+	if p_limit < 0:
+		if Engine.max_fps == 0:
+			info("Framerate is unlimited.")
+		else:
+			info("Framerate is limited to %d FPS." % [Engine.max_fps])
+		return
+
+	Engine.max_fps = p_limit
+	if p_limit > 0:
+		info("Limiting framerate to %d FPS." % [p_limit])
+	elif p_limit == 0:
+		info("Removing framerate limits.")
 
 
 func _cmd_fullscreen() -> void:
@@ -557,11 +584,3 @@ func _cmd_help(p_command_name: String = "") -> void:
 
 func _cmd_quit() -> void:
 	get_tree().quit()
-
-
-func _format_name(p_name: String) -> String:
-	return "[color=" + _color_command_mention.to_html() + "]" + p_name + "[/color]"
-
-
-func _format_tip(p_text: String) -> String:
-	return "[i][color=" + _color_debug.to_html() + "]" + p_text + "[/color][/i]"
