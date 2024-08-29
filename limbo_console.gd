@@ -34,7 +34,7 @@ func _init() -> void:
 
 	info("[b]" + ProjectSettings.get_setting("application/config/name") + " console[/b]")
 	_cmd_help()
-	info("[color=gray]-----[/color]")
+	info(_format_tip("-----"))
 
 	register_command(info, "echo", "display a line of text")
 	register_command(_cmd_aliases, "aliases", "list all aliases")
@@ -97,6 +97,7 @@ func _build_gui() -> void:
 	vbox.add_child(_content)
 
 	_command_line = LineEdit.new()
+	_command_line.add_theme_font_override("font", FONT_NORMAL)
 	vbox.add_child(_command_line)
 
 
@@ -214,7 +215,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		error("Unknown command: " + command_name)
 		var fuzzy_hit: String = _fuzzy_match_command(command_name, 2)
 		if fuzzy_hit:
-			info("Did you mean %s? ([b]TAB[/b] to fill)" % [_format_name(fuzzy_hit)])
+			info("Did you mean %s? %s" % [_format_name(fuzzy_hit), _format_tip("([b]TAB[/b] to fill)")])
 			var suggest_command: String = fuzzy_hit + " " + " ".join(argv.slice(1, argv.size()))
 			suggest_command = suggest_command.strip_edges()
 			_autocomplete_matches.append.call_deferred(suggest_command)
@@ -509,8 +510,8 @@ func _cmd_fullscreen() -> void:
 
 func _cmd_help(p_command_name: String = "") -> void:
 	if p_command_name.is_empty():
-		print_line("Type %s to list all available commands." % [_format_name("commands")])
-		print_line("Type %s to get more info about the command." % [_format_name("help command")])
+		print_line(_format_tip("Type %s to list all available commands." % [_format_name("commands")]))
+		print_line(_format_tip("Type %s to get more info about the command." % [_format_name("help command")]))
 	elif is_command_registered(p_command_name):
 		_usage(p_command_name)
 	else:
@@ -523,3 +524,7 @@ func _cmd_quit() -> void:
 
 func _format_name(p_name: String) -> String:
 	return "[color=cyan]" + p_name + "[/color]"
+
+
+func _format_tip(p_text: String) -> String:
+	return "[i][color=gray]" + p_text + "[/color][/i]"
