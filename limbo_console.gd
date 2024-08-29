@@ -234,12 +234,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 
 	if not is_command_registered(command_name):
 		error("Unknown command: " + command_name)
-		var fuzzy_hit: String = _fuzzy_match_command(command_name, 2)
-		if fuzzy_hit:
-			info("Did you mean %s? %s" % [_format_name(fuzzy_hit), _format_tip("([b]TAB[/b] to fill)")])
-			var suggest_command: String = fuzzy_hit + " " + " ".join(argv.slice(1, argv.size()))
-			suggest_command = suggest_command.strip_edges()
-			_autocomplete_matches.append.call_deferred(suggest_command)
+		_suggest_similar(argv, 0)
 		return
 
 	var dealiased_name: String = _command_aliases.get(command_name, command_name)
@@ -353,6 +348,11 @@ func _get_method_info(p_callable: Callable) -> Dictionary:
 
 
 func _usage(p_command_name: String) -> void:
+	if not is_command_registered(p_command_name):
+		error("Command not found: " + _format_name(p_command_name))
+		_suggest_similar(_parse_command_line(_history[_history.size() - 1]), 1)
+		return
+
 	var dealiased_name: String = _command_aliases.get(p_command_name, p_command_name)
 	if dealiased_name != p_command_name:
 		print_line("Alias of " + _format_name(dealiased_name) + ".")
@@ -431,6 +431,18 @@ func _autocomplete() -> void:
 		_fill_command_line(match)
 		_autocomplete_matches.remove_at(0)
 		_autocomplete_matches.push_back(match)
+
+
+## Suggest similar command to the user with auto-filling.
+func _suggest_similar(p_argv: PackedStringArray, p_command_index: int = 0) -> void:
+	var fuzzy_hit: String = _fuzzy_match_command(p_argv[p_command_index], 2)
+	if fuzzy_hit:
+		info("Did you mean %s? %s" % [_format_name(fuzzy_hit), _format_tip("([b]TAB[/b] to fill)")])
+		var argv := p_argv.duplicate()
+		argv[p_command_index] = fuzzy_hit
+		var suggest_command: String = " ".join(argv)
+		suggest_command = suggest_command.strip_edges()
+		_autocomplete_matches.append.call_deferred(suggest_command)
 
 
 func _fuzzy_match_command(p_name: String, p_max_edit_distance: int) -> String:
@@ -533,10 +545,8 @@ func _cmd_help(p_command_name: String = "") -> void:
 	if p_command_name.is_empty():
 		print_line(_format_tip("Type %s to list all available commands." % [_format_name("commands")]))
 		print_line(_format_tip("Type %s to get more info about the command." % [_format_name("help command")]))
-	elif is_command_registered(p_command_name):
-		_usage(p_command_name)
 	else:
-		error("Command not found: " + _format_name(p_command_name))
+		_usage(p_command_name)
 
 
 func _cmd_quit() -> void:
