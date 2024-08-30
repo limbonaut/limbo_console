@@ -287,9 +287,9 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	var command_name: String = argv[0]
 	var command_args: Array = []
 
-	var history_line: String = " ".join(argv)
-	_push_history(history_line)
 	if not p_silent:
+		var history_line: String = " ".join(argv)
+		_push_history(history_line)
 		info("[color=%s][b]>[/b] %s[/color] %s" %
 				[_color_command.to_html(), command_name, " ".join(argv.slice(1, argv.size()))])
 
