@@ -5,6 +5,9 @@ signal toggled(is_shown)
 
 const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
 const THEME_CUSTOM := "res://addons/limbo_console/res/custom_theme.tres"
+const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
+
+var _options: ConsoleOptions
 
 var _console_control: Control
 var _content: RichTextLabel
@@ -29,6 +32,8 @@ var _autocomplete_matches: PackedStringArray
 func _init() -> void:
 	layer = 9999
 	process_mode = ProcessMode.PROCESS_MODE_ALWAYS
+
+	_options = ConsoleOptions.new()
 
 	_build_gui()
 	_init_theme()
