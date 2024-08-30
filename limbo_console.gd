@@ -4,7 +4,6 @@ extends CanvasLayer
 signal toggled(is_shown)
 
 const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
-const THEME_CUSTOM := "res://addons/limbo_console/res/custom_theme.tres"
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
 
 var _options: ConsoleOptions
@@ -115,8 +114,8 @@ func _build_gui() -> void:
 
 func _init_theme() -> void:
 	var theme: Theme
-	if ResourceLoader.exists(THEME_CUSTOM, "Theme"):
-		theme = load(THEME_CUSTOM)
+	if ResourceLoader.exists(_options.custom_theme, "Theme"):
+		theme = load(_options.custom_theme)
 	else:
 		theme = load(THEME_DEFAULT)
 	_console_control.theme = theme
