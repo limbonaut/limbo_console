@@ -7,6 +7,7 @@ const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
 const HISTORY_FILE := "user://limbo_console_history.log"
 
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
+const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
 
 var _options: ConsoleOptions
 
@@ -35,6 +36,7 @@ func _init() -> void:
 	process_mode = ProcessMode.PROCESS_MODE_ALWAYS
 
 	_options = ConsoleOptions.new()
+	ConfigMapper.load_from_config(_options)
 
 	_build_gui()
 	_init_theme()
@@ -125,8 +127,10 @@ func _build_gui() -> void:
 func _init_theme() -> void:
 	var theme: Theme
 	if ResourceLoader.exists(_options.custom_theme, "Theme"):
+		print("Using custom theme")
 		theme = load(_options.custom_theme)
 	else:
+		print("Using default theme")
 		theme = load(THEME_DEFAULT)
 	_console_control.theme = theme
 
