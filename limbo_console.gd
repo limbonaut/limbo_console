@@ -407,7 +407,7 @@ func _usage(p_command_name: String) -> void:
 			if typeof(def_value) == TYPE_STRING:
 				def_value = "\"" + def_value + "\""
 			def_spec = " = %s" % [def_value]
-		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(method_info.args[i].type), def_spec]
+		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
 
 	_print_line(usage_line)
 
