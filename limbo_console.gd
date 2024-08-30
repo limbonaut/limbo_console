@@ -4,6 +4,8 @@ extends CanvasLayer
 signal toggled(is_shown)
 
 const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
+const HISTORY_FILE := "user://limbo_console_history.log"
+
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
 
 var _options: ConsoleOptions
@@ -38,6 +40,9 @@ func _init() -> void:
 	_init_theme()
 	_console_control.hide()
 
+	if _options.persist_history:
+		_load_history()
+
 	_command_line.text_submitted.connect(_on_command_line_submitted)
 	_command_line.text_changed.connect(_on_command_line_changed)
 
@@ -57,6 +62,11 @@ func _init() -> void:
 
 	add_alias("usage", "help")
 	add_alias("exit", "quit")
+
+
+func _exit_tree() -> void:
+	if _options.persist_history:
+		_save_history()
 
 
 func _input(event: InputEvent) -> void:
@@ -131,6 +141,27 @@ func _init_theme() -> void:
 
 	_content.add_theme_color_override(&"default_color", _color_text)
 	_command_line.add_theme_color_override(&"font_color", _color_command_line)
+
+
+func _load_history() -> void:
+	var file := FileAccess.open(HISTORY_FILE, FileAccess.READ)
+	if not file:
+		return
+	while not file.eof_reached():
+		var line: String = file.get_line().strip_edges()
+		if not line.is_empty():
+			_history.append(line)
+	file.close()
+
+
+func _save_history() -> void:
+	var file := FileAccess.open(HISTORY_FILE, FileAccess.WRITE)
+	if not file:
+		push_error("LimboConsole: Failed to save console history to file: ", HISTORY_FILE)
+		return
+	for line in _history:
+		file.store_line(line)
+	file.close()
 
 
 func show_console() -> void:
@@ -251,7 +282,8 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	var command_name: String = argv[0]
 	var command_args: Array = []
 
-	_push_history(" ".join(argv))
+	var history_line: String = " ".join(argv)
+	_push_history(history_line)
 	if not p_silent:
 		info("[color=%s][b]>[/b] %s[/color] %s" %
 				[_color_command.to_html(), command_name, " ".join(argv.slice(1, argv.size()))])
@@ -434,7 +466,7 @@ func _fill_command_line(p_line: String) -> void:
 
 
 func _fill_from_history() -> void:
-	_hist_idx = clampi(_hist_idx, -1, _history.size() - 1)
+	_hist_idx = wrapi(_hist_idx, -1, _history.size())
 	if _hist_idx < 0:
 		_fill_command_line("")
 	else:
