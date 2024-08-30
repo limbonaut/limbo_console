@@ -155,6 +155,11 @@ func _load_history() -> void:
 
 
 func _save_history() -> void:
+	# Trim history first
+	var max_lines: int = maxi(_options.history_lines, 0)
+	if _history.size() > max_lines:
+		_history = _history.slice(_history.size() - max_lines)
+
 	var file := FileAccess.open(HISTORY_FILE, FileAccess.WRITE)
 	if not file:
 		push_error("LimboConsole: Failed to save console history to file: ", HISTORY_FILE)
