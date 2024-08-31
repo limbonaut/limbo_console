@@ -235,7 +235,8 @@ func debug(p_line: String) -> void:
 func _print_line(p_line: String) -> void:
 	var line: String = p_line + "\n"
 	_content.text += line
-	print_rich(line.strip_edges())
+	if _options.print_to_godot_console:
+		print_rich(line.strip_edges())
 
 
 ## Registers a new command for the specified callable. [br]
