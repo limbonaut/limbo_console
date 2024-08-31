@@ -9,6 +9,14 @@ const HISTORY_FILE := "user://limbo_console_history.log"
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
 const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
 
+## If false, prevents console from being shown. Commands can still be executed from code.
+var enabled: bool = true:
+	set(value):
+		enabled = value
+		set_process_input(enabled)
+		if not enabled and _console_control.visible:
+			hide_console()
+
 var _options: ConsoleOptions
 
 var _console_control: Control
@@ -174,7 +182,7 @@ func _save_history() -> void:
 
 
 func show_console() -> void:
-	if not _console_control.visible:
+	if not _console_control.visible and enabled:
 		_console_control.show()
 		get_tree().paused = true
 		_command_line.grab_focus()
@@ -186,6 +194,10 @@ func hide_console() -> void:
 		_console_control.hide()
 		get_tree().paused = false
 		toggled.emit(false)
+
+
+func is_visible() -> bool:
+	return _console_control.visible
 
 
 func toggle_console() -> void:
