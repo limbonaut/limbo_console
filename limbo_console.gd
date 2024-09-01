@@ -31,6 +31,8 @@ var _output_warning_color: Color
 var _output_text_color: Color
 var _output_debug_color: Color
 var _entry_text_color: Color
+var _entry_command_found_color: Color
+var _entry_command_not_found_color: Color
 
 var _commands: Dictionary
 var _command_aliases: Dictionary
@@ -149,9 +151,14 @@ func _init_theme() -> void:
 	_output_warning_color = theme.get_color(&"output_warning_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_debug_color = theme.get_color(&"output_debug_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_text_color = theme.get_color(&"entry_text_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_command_found_color = theme.get_color(&"entry_command_found_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_command_not_found_color = theme.get_color(&"entry_command_not_found_color", CONSOLE_COLORS_THEME_TYPE)
 
 	_output.add_theme_color_override(&"default_color", _output_text_color)
 	_entry.add_theme_color_override(&"font_color", _entry_text_color)
+	_entry.syntax_highlighter.command_found_color = _entry_command_found_color
+	_entry.syntax_highlighter.command_not_found_color = _entry_command_not_found_color
+	_entry.syntax_highlighter.text_color = _entry_text_color
 
 
 func _load_history() -> void:
@@ -273,16 +280,16 @@ func unregister_command(p_func_or_name) -> void:
 
 
 ## Is a command or an alias registered by the given name.
-func is_command_registered(p_name: String) -> bool:
+func has_command(p_name: String) -> bool:
 	return _commands.has(p_name) or _command_aliases.has(p_name)
 
 
 ## Adds an alias for an existing command.
 func add_alias(p_alias: String, p_existing: String) -> void:
-	if is_command_registered(p_alias):
+	if has_command(p_alias):
 		error("Command or alias already registered: " + p_alias)
 		return
-	if not is_command_registered(p_existing):
+	if not has_command(p_existing):
 		error("Command not found: " + p_existing)
 		return
 	_command_aliases[p_alias] = p_existing
@@ -309,7 +316,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		info("[color=%s][b]>[/b] %s[/color] %s" %
 				[_output_command_color.to_html(), command_name, " ".join(argv.slice(1, argv.size()))])
 
-	if not is_command_registered(command_name):
+	if not has_command(command_name):
 		error("Unknown command: " + command_name)
 		_suggest_similar(argv, 0)
 		return
@@ -430,7 +437,7 @@ func _get_method_info(p_callable: Callable) -> Dictionary:
 
 ## Prints the help text for the given command.
 func _usage(p_command_name: String) -> void:
-	if not is_command_registered(p_command_name):
+	if not has_command(p_command_name):
 		error("Command not found: " + _format_name(p_command_name))
 		_suggest_similar(_parse_command_line(_history[_history.size() - 1]), 1)
 		return

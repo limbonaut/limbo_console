@@ -5,6 +5,10 @@ extends TextEdit
 signal text_submitted(command_line: String)
 
 
+func _init() -> void:
+	syntax_highlighter = CommandEntryHighlighter.new()
+
+
 func _ready() -> void:
 	caret_multiple = false
 
@@ -45,3 +49,27 @@ func submit_text() -> void:
 func _hide_scrollbars() -> void:
 	get_v_scroll_bar().hide()
 	get_h_scroll_bar().hide()
+
+
+class CommandEntryHighlighter extends SyntaxHighlighter:
+	var command_found_color: Color
+	var command_not_found_color: Color
+	var text_color: Color
+
+	func _get_line_syntax_highlighting(line: int) -> Dictionary:
+		var command_color: Color
+		var command_name: String
+		var text: String = get_text_edit().text
+		var end: int = 0
+
+		for c in text:
+			if c == ' ':
+				break
+			end += 1
+		command_name = text.substr(0, end).strip_edges()
+		command_color = command_found_color if LimboConsole.has_command(command_name) else command_not_found_color
+
+		return {
+			0: {"color": command_color},
+			end: {"color": text_color},
+			}
