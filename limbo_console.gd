@@ -8,28 +8,29 @@ const HISTORY_FILE := "user://limbo_console_history.log"
 
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
 const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
+const CommandEntry := preload("res://addons/limbo_console/command_entry.gd")
 
 ## If false, prevents console from being shown. Commands can still be executed from code.
 var enabled: bool = true:
 	set(value):
 		enabled = value
 		set_process_input(enabled)
-		if not enabled and _console_control.visible:
+		if not enabled and _control.visible:
 			hide_console()
 
 var _options: ConsoleOptions
 
-var _console_control: Control
-var _content: RichTextLabel
-var _command_line: LineEdit
+var _control: Control
+var _output: RichTextLabel
+var _entry: CommandEntry
 
-var _color_command: Color
-var _color_command_line: Color
-var _color_command_mention: Color
-var _color_error: Color
-var _color_warning: Color
-var _color_text: Color
-var _color_debug: Color
+var _output_command_color: Color
+var _output_command_mention_color: Color
+var _output_error_color: Color
+var _output_warning_color: Color
+var _output_text_color: Color
+var _output_debug_color: Color
+var _entry_text_color: Color
 
 var _commands: Dictionary
 var _command_aliases: Dictionary
@@ -48,13 +49,13 @@ func _init() -> void:
 
 	_build_gui()
 	_init_theme()
-	_console_control.hide()
+	_control.hide()
 
 	if _options.persist_history:
 		_load_history()
 
-	_command_line.text_submitted.connect(_on_command_line_submitted)
-	_command_line.text_changed.connect(_on_command_line_changed)
+	_entry.text_submitted.connect(_on_entry_text_submitted)
+	_entry.text_changed.connect(_on_entry_text_changed)
 
 	info("[b]" + ProjectSettings.get_setting("application/config/name") + " console[/b]")
 	_cmd_help()
@@ -85,7 +86,7 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("limbo_console_toggle"):
 		toggle_console()
 		get_viewport().set_input_as_handled()
-	elif _console_control.visible and event is InputEventKey and event.is_pressed():
+	elif _control.visible and event is InputEventKey and event.is_pressed():
 		var handled := true
 		if event.keycode == KEY_UP:
 			_hist_idx += 1
@@ -96,10 +97,10 @@ func _input(event: InputEvent) -> void:
 		elif event.keycode == KEY_TAB:
 			_autocomplete()
 		elif event.keycode == KEY_PAGEUP:
-			var scroll_bar: VScrollBar = _content.get_v_scroll_bar()
+			var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
 			scroll_bar.value -= scroll_bar.page
 		elif event.keycode == KEY_PAGEDOWN:
-			var scroll_bar: VScrollBar = _content.get_v_scroll_bar()
+			var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
 			scroll_bar.value += scroll_bar.page
 		else:
 			handled = false
@@ -109,7 +110,7 @@ func _input(event: InputEvent) -> void:
 
 func _build_gui() -> void:
 	var panel := PanelContainer.new()
-	_console_control = panel
+	_control = panel
 	panel.anchor_bottom = 0.5
 	panel.anchor_right = 1.0
 	add_child(panel)
@@ -118,18 +119,16 @@ func _build_gui() -> void:
 	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.add_child(vbox)
 
-	_content = RichTextLabel.new()
-	_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_content.scroll_active = true
-	_content.scroll_following = true
-	_content.bbcode_enabled = true
-	# _content.selection_enabled = true
-	# _content.context_menu_enabled = true
-	_content.focus_mode = Control.FOCUS_CLICK
-	vbox.add_child(_content)
+	_output = RichTextLabel.new()
+	_output.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_output.scroll_active = true
+	_output.scroll_following = true
+	_output.bbcode_enabled = true
+	_output.focus_mode = Control.FOCUS_CLICK
+	vbox.add_child(_output)
 
-	_command_line = LineEdit.new()
-	vbox.add_child(_command_line)
+	_entry = CommandEntry.new()
+	vbox.add_child(_entry)
 
 
 func _init_theme() -> void:
@@ -140,19 +139,19 @@ func _init_theme() -> void:
 	else:
 		print("Using default theme")
 		theme = load(THEME_DEFAULT)
-	_console_control.theme = theme
+	_control.theme = theme
 
 	const CONSOLE_COLORS_THEME_TYPE := &"ConsoleColors"
-	_color_command = theme.get_color(&"command_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_command_line = theme.get_color(&"command_line_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_command_mention = theme.get_color(&"command_mention_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_text = theme.get_color(&"text_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_error = theme.get_color(&"error_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_warning = theme.get_color(&"warning_color", CONSOLE_COLORS_THEME_TYPE)
-	_color_debug = theme.get_color(&"debug_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_command_color = theme.get_color(&"output_command_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_command_mention_color = theme.get_color(&"output_command_mention_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_text_color = theme.get_color(&"output_text_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_error_color = theme.get_color(&"output_error_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_warning_color = theme.get_color(&"output_warning_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_debug_color = theme.get_color(&"output_debug_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_text_color = theme.get_color(&"entry_text_color", CONSOLE_COLORS_THEME_TYPE)
 
-	_content.add_theme_color_override(&"default_color", _color_text)
-	_command_line.add_theme_color_override(&"font_color", _color_command_line)
+	_output.add_theme_color_override(&"default_color", _output_text_color)
+	_entry.add_theme_color_override(&"font_color", _entry_text_color)
 
 
 func _load_history() -> void:
@@ -182,26 +181,26 @@ func _save_history() -> void:
 
 
 func show_console() -> void:
-	if not _console_control.visible and enabled:
-		_console_control.show()
+	if not _control.visible and enabled:
+		_control.show()
 		get_tree().paused = true
-		_command_line.grab_focus()
+		_entry.grab_focus()
 		toggled.emit(true)
 
 
 func hide_console() -> void:
-	if _console_control.visible:
-		_console_control.hide()
+	if _control.visible:
+		_control.hide()
 		get_tree().paused = false
 		toggled.emit(false)
 
 
 func is_visible() -> bool:
-	return _console_control.visible
+	return _control.visible
 
 
 func toggle_console() -> void:
-	if _console_control.visible:
+	if _control.visible:
 		hide_console()
 	else:
 		show_console()
@@ -209,7 +208,7 @@ func toggle_console() -> void:
 
 ## Clears all messages in the console.
 func clear_console() -> void:
-	_content.text = ""
+	_output.text = ""
 
 
 ## Prints an info message to the console and the output.
@@ -219,22 +218,22 @@ func info(p_line: String) -> void:
 
 ## Prints an error message to the console and the output.
 func error(p_line: String) -> void:
-	_print_line("[color=%s]ERROR:[/color] %s" % [_color_error.to_html(), p_line])
+	_print_line("[color=%s]ERROR:[/color] %s" % [_output_error_color.to_html(), p_line])
 
 
 ## Prints a warning message to the console and the output.
 func warn(p_line: String) -> void:
-	_print_line("[color=%s]WARNING:[/color] %s" % [_color_warning.to_html(), p_line])
+	_print_line("[color=%s]WARNING:[/color] %s" % [_output_warning_color.to_html(), p_line])
 
 
 ## Prints a debug message to the console and the output.
 func debug(p_line: String) -> void:
-	_print_line("[color=%s]DEBUG: %s[/color]" % [_color_debug.to_html(), p_line])
+	_print_line("[color=%s]DEBUG: %s[/color]" % [_output_debug_color.to_html(), p_line])
 
 
 func _print_line(p_line: String) -> void:
 	var line: String = p_line + "\n"
-	_content.text += line
+	_output.text += line
 	if _options.print_to_godot_console:
 		print_rich(line.strip_edges())
 
@@ -308,7 +307,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		var history_line: String = " ".join(argv)
 		_push_history(history_line)
 		info("[color=%s][b]>[/b] %s[/color] %s" %
-				[_color_command.to_html(), command_name, " ".join(argv.slice(1, argv.size()))])
+				[_output_command_color.to_html(), command_name, " ".join(argv.slice(1, argv.size()))])
 
 	if not is_command_registered(command_name):
 		error("Unknown command: " + command_name)
@@ -482,17 +481,17 @@ func _usage(p_command_name: String) -> void:
 		_print_line(arg_lines)
 
 
-func _fill_command_line(p_line: String) -> void:
-	_command_line.text = p_line
-	_command_line.set_deferred(&"caret_column", p_line.length())
+func _fill_command_entry(p_line: String) -> void:
+	_entry.text = p_line
+	_entry.set_caret_column(p_line.length())
 
 
 func _fill_from_history() -> void:
 	_hist_idx = wrapi(_hist_idx, -1, _history.size())
 	if _hist_idx < 0:
-		_fill_command_line("")
+		_fill_command_entry("")
 	else:
-		_fill_command_line(_history[_history.size() - _hist_idx - 1])
+		_fill_command_entry(_history[_history.size() - _hist_idx - 1])
 
 
 func _push_history(p_line: String) -> void:
@@ -506,14 +505,14 @@ func _push_history(p_line: String) -> void:
 ## Auto-completes a command or auto-correction on TAB.
 func _autocomplete() -> void:
 	if _autocomplete_matches.is_empty():
-		var entry: String = _command_line.text
+		var line: String = _entry.text
 		for k in _commands:
-			if k.begins_with(entry):
+			if k.begins_with(line):
 				_autocomplete_matches.append(k)
 		_autocomplete_matches.sort()
 	if not _autocomplete_matches.is_empty():
 		var match: String = _autocomplete_matches[0]
-		_fill_command_line(match)
+		_fill_command_entry(match)
 		_autocomplete_matches.remove_at(0)
 		_autocomplete_matches.push_back(match)
 
@@ -590,21 +589,21 @@ func _calculate_osa_distance(s1: String, s2: String) -> int:
 
 ## Formats the command name for display.
 func _format_name(p_name: String) -> String:
-	return "[color=" + _color_command_mention.to_html() + "]" + p_name + "[/color]"
+	return "[color=" + _output_command_mention_color.to_html() + "]" + p_name + "[/color]"
 
 
 ## Formats the helpful tip text (hopefully).
 func _format_tip(p_text: String) -> String:
-	return "[i][color=" + _color_debug.to_html() + "]" + p_text + "[/color][/i]"
+	return "[i][color=" + _output_debug_color.to_html() + "]" + p_text + "[/color][/i]"
 
 
-func _on_command_line_submitted(p_command: String) -> void:
+func _on_entry_text_submitted(p_command: String) -> void:
 	execute_command(p_command)
-	_fill_command_line("")
+	_fill_command_entry("")
 	_autocomplete_matches.clear()
 
 
-func _on_command_line_changed(p_line: String) -> void:
+func _on_entry_text_changed() -> void:
 	_autocomplete_matches.clear()
 
 
