@@ -11,14 +11,9 @@ func _init() -> void:
 
 func _ready() -> void:
 	caret_multiple = false
-
-	# Determine minimum size.
-	var font := get_theme_font("font", "TextEdit")
-	var font_size = get_theme_font_size("font_size")
-	var vsize: float = font.get_string_size("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", 0, -1, font_size).y
-	var sb := get_theme_stylebox("focus")
-	vsize += sb.get_minimum_size().y
-	custom_minimum_size = Vector2(0.0, vsize)
+	autowrap_mode = TextServer.AUTOWRAP_OFF
+	scroll_fit_content_height = true
+	# placeholder_text = ""
 
 	get_v_scroll_bar().visibility_changed.connect(_hide_scrollbars)
 	get_h_scroll_bar().visibility_changed.connect(_hide_scrollbars)

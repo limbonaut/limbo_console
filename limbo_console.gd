@@ -24,6 +24,7 @@ var _control: Control
 var _output: RichTextLabel
 var _entry: CommandEntry
 
+# Theme colors
 var _output_command_color: Color
 var _output_command_mention_color: Color
 var _output_error_color: Color
