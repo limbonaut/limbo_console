@@ -44,12 +44,17 @@ func _notification(what: int) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if not has_focus():
+		return
 	if event is InputEventKey:
 		if event.keycode == KEY_ENTER:
 			if event.is_pressed():
 				submit_text()
 			get_viewport().set_input_as_handled()
-		queue_redraw()
+		elif event.keycode == KEY_C and event.get_modifiers_mask() == KEY_MASK_CTRL and get_selected_text().is_empty():
+			text = ""
+			text_changed.emit()
+			get_viewport().set_input_as_handled()
 
 
 func _draw() -> void:
