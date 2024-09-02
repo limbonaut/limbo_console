@@ -31,8 +31,7 @@ func _ready() -> void:
 
 	_font = get_theme_font("font")
 	_font_size = get_theme_font_size("font_size")
-	_hint_color = get_theme_color("font_color")
-	_hint_color.a *= 0.5
+	_hint_color = get_theme_color("hint_color")
 	_sb_normal = get_theme_stylebox("normal")
 
 

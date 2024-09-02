@@ -32,6 +32,7 @@ var _output_warning_color: Color
 var _output_text_color: Color
 var _output_debug_color: Color
 var _entry_text_color: Color
+var _entry_hint_color: Color
 var _entry_command_found_color: Color
 var _entry_command_not_found_color: Color
 
@@ -152,11 +153,13 @@ func _init_theme() -> void:
 	_output_warning_color = theme.get_color(&"output_warning_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_debug_color = theme.get_color(&"output_debug_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_text_color = theme.get_color(&"entry_text_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_hint_color = theme.get_color(&"entry_hint_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_found_color = theme.get_color(&"entry_command_found_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_not_found_color = theme.get_color(&"entry_command_not_found_color", CONSOLE_COLORS_THEME_TYPE)
 
 	_output.add_theme_color_override(&"default_color", _output_text_color)
 	_entry.add_theme_color_override(&"font_color", _entry_text_color)
+	_entry.add_theme_color_override(&"hint_color", _entry_hint_color)
 	_entry.syntax_highlighter.command_found_color = _entry_command_found_color
 	_entry.syntax_highlighter.command_not_found_color = _entry_command_not_found_color
 	_entry.syntax_highlighter.text_color = _entry_text_color
@@ -559,7 +562,7 @@ func _suggest_similar(p_argv: PackedStringArray, p_command_index: int = 0) -> vo
 		argv[p_command_index] = fuzzy_hit
 		var suggest_command: String = " ".join(argv)
 		suggest_command = suggest_command.strip_edges()
-		_autocomplete_matches.append.call_deferred(suggest_command)
+		_autocomplete_matches.append(suggest_command)
 
 
 ## Finds a command with a similar name.
@@ -585,8 +588,8 @@ func _calculate_osa_distance(s1: String, s2: String) -> int:
 	var s2_len: int = s2.length()
 
 	# Iterative approach with 3 matrix rows.
-	# Most of the work is done on row1 and row2 - row0 is only needed to calculate transpostition cost.
-	var row0: PackedInt32Array # previos-previous
+	# Most of the work is done on row1 and row2 - row0 is only needed to calculate transposition cost.
+	var row0: PackedInt32Array # previous-previous
 	var row1: PackedInt32Array # previous
 	var row2: PackedInt32Array # current aka the one we need to calculate
 	row0.resize(s2_len + 1)
