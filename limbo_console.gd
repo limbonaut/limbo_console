@@ -512,17 +512,42 @@ func _push_history(p_line: String) -> void:
 
 ## Auto-completes a command or auto-correction on TAB.
 func _autocomplete() -> void:
-	if _autocomplete_matches.is_empty():
-		var line: String = _entry.text
-		for k in _commands:
-			if k.begins_with(line):
-				_autocomplete_matches.append(k)
-		_autocomplete_matches.sort()
 	if not _autocomplete_matches.is_empty():
 		var match: String = _autocomplete_matches[0]
 		_fill_command_entry(match)
 		_autocomplete_matches.remove_at(0)
 		_autocomplete_matches.push_back(match)
+		_update_autocomplete()
+
+
+## Updates autocomplete suggestions and hint based on user input.
+func _update_autocomplete() -> void:
+	var argv: PackedStringArray = _parse_command_line(_entry.text)
+	var is_typing_command_name: bool = argv.size() <= 1 and _entry.text.right(1) != ' '
+
+	if _autocomplete_matches.is_empty() and not _entry.text.is_empty():
+		if is_typing_command_name:
+			var line: String = _entry.text
+			for k in _commands:
+				if k.begins_with(line):
+					_autocomplete_matches.append(k)
+			_autocomplete_matches.sort()
+		else:
+			for i in range(_history.size() - 1, -1, -1):
+				if _history[i].begins_with(_entry.text):
+					_autocomplete_matches.append(_history[i])
+
+	if _autocomplete_matches.size() > 0 \
+			and _autocomplete_matches[0].length() > _entry.text.length() \
+			and _autocomplete_matches[0].begins_with(_entry.text):
+		_entry.autocomplete_hint = _autocomplete_matches[0].substr(_entry.text.length())
+	else:
+		_entry.autocomplete_hint = ""
+
+
+func _clear_autocomplete() -> void:
+	_autocomplete_matches.clear()
+	_entry.autocomplete_hint = ""
 
 
 ## Suggests a similar command to the user and prepares the auto-correction on TAB.
@@ -606,13 +631,15 @@ func _format_tip(p_text: String) -> String:
 
 
 func _on_entry_text_submitted(p_command: String) -> void:
-	execute_command(p_command)
+	_clear_autocomplete()
 	_fill_command_entry("")
-	_autocomplete_matches.clear()
+	execute_command(p_command)
+	_update_autocomplete()
 
 
 func _on_entry_text_changed() -> void:
-	_autocomplete_matches.clear()
+	_clear_autocomplete()
+	_update_autocomplete()
 
 
 # *** BUILT-IN COMMANDS

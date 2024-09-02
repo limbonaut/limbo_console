@@ -4,6 +4,16 @@ extends TextEdit
 
 signal text_submitted(command_line: String)
 
+var autocomplete_hint: String:
+	set(value):
+		if autocomplete_hint != value:
+			autocomplete_hint = value
+			queue_redraw()
+
+var _font: Font
+var _font_size: int
+var _hint_color: Color
+var _sb_normal: StyleBox
 
 func _init() -> void:
 	syntax_highlighter = CommandEntryHighlighter.new()
@@ -18,6 +28,12 @@ func _ready() -> void:
 	get_v_scroll_bar().visibility_changed.connect(_hide_scrollbars)
 	get_h_scroll_bar().visibility_changed.connect(_hide_scrollbars)
 	_hide_scrollbars()
+
+	_font = get_theme_font("font")
+	_font_size = get_theme_font_size("font_size")
+	_hint_color = get_theme_color("font_color")
+	_hint_color.a *= 0.5
+	_sb_normal = get_theme_stylebox("normal")
 
 
 func _notification(what: int) -> void:
@@ -34,6 +50,20 @@ func _input(event: InputEvent) -> void:
 			if event.is_pressed():
 				submit_text()
 			get_viewport().set_input_as_handled()
+		queue_redraw()
+
+
+func _draw() -> void:
+	var offset_x: int = 0
+	offset_x += _sb_normal.get_offset().x * 0.5
+	offset_x += get_line_width(0)
+
+	var offset_y: int = 0
+	offset_y += _sb_normal.get_offset().y * 0.5
+	offset_y += get_line_height() + 0.5 # + line_spacing
+	offset_y -= _font.get_descent(_font_size)
+
+	draw_string(_font, Vector2(offset_x, offset_y), autocomplete_hint, 0, -1, _font_size, _hint_color)
 
 
 func submit_text() -> void:
