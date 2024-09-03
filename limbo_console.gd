@@ -62,7 +62,8 @@ func _init() -> void:
 	_entry.text_submitted.connect(_on_entry_text_submitted)
 	_entry.text_changed.connect(_on_entry_text_changed)
 
-	_greet()
+	if _options.greet_user:
+		_greet()
 
 	register_command(_cmd_aliases, "aliases", "list all aliases")
 	register_command(clear_console, "clear", "clear console screen")
