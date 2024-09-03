@@ -1,5 +1,6 @@
 extends RefCounted
 
+
 const boxed_map: Dictionary = {
 'a': """
 ▒▄▀█
@@ -133,6 +134,54 @@ const boxed_map: Dictionary = {
 ░▀▀▄
 ░▒█▀
 """,
+'\'': """
+░▀
+░░
+""",
+':': """
+░▄░
+▒▄▒
+""",
+'0': """
+░▄▀▄
+░▀▄▀
+""",
+'1': """
+░▄█
+░░█
+""",
+'2': """
+░▀█
+░█▄
+""",
+'3': """
+░▀██
+░▄▄█
+""",
+'4': """
+░█▄
+░░█
+""",
+'5': """
+░█▀
+░▄█
+""",
+'6': """
+░█▀
+░██
+""",
+'7': """
+░▀█
+░█░
+""",
+'8': """
+░█▄█
+░█▄█
+""",
+'9': """
+░██
+░▄█
+""",
 }
 
 
@@ -144,8 +193,6 @@ static func str_to_boxed_art(p_text: String) -> PackedStringArray:
 		var parts: PackedStringArray = ascii.split('\n')
 		lines[0] += parts[1]
 		lines[1] += parts[2]
-	# lines[0] += '░'
-	# lines[1] += '░'
 	return lines
 
 
