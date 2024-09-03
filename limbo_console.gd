@@ -6,9 +6,10 @@ signal toggled(is_shown)
 const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
 const HISTORY_FILE := "user://limbo_console_history.log"
 
-const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
-const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
+const AsciiArt := preload("res://addons/limbo_console/ascii_art.gd")
 const CommandEntry := preload("res://addons/limbo_console/command_entry.gd")
+const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
+const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
 
 ## If false, prevents console from being shown. Commands can still be executed from code.
 var enabled: bool = true:
@@ -61,9 +62,7 @@ func _init() -> void:
 	_entry.text_submitted.connect(_on_entry_text_submitted)
 	_entry.text_changed.connect(_on_entry_text_changed)
 
-	info("[b]" + ProjectSettings.get_setting("application/config/name") + " console[/b]")
-	_cmd_help()
-	info(_format_tip("-----"))
+	_greet()
 
 	register_command(_cmd_aliases, "aliases", "list all aliases")
 	register_command(clear_console, "clear", "clear console screen")
@@ -163,6 +162,18 @@ func _init_theme() -> void:
 	_entry.syntax_highlighter.command_found_color = _entry_command_found_color
 	_entry.syntax_highlighter.command_not_found_color = _entry_command_not_found_color
 	_entry.syntax_highlighter.text_color = _entry_text_color
+
+
+func _greet() -> void:
+	var project_name: String = ProjectSettings.get_setting("application/config/name")
+	if AsciiArt.is_boxed_art_supported(project_name):
+		for line in AsciiArt.str_to_boxed_art(project_name):
+			info(line)
+		info("")
+	else:
+		info("[b]" + project_name + "[/b]")
+	_cmd_help()
+	info(_format_tip("-----"))
 
 
 func _load_history() -> void:
