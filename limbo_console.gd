@@ -362,13 +362,18 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 	var argv: PackedStringArray = []
 	var arg: String = ""
 	var in_quotes: bool = false
+	var in_brackets: bool = false
 	var line: String = p_line.strip_edges()
 	var start: int = 0
 	var cur: int = 0
 	for char in line:
 		if char == '"':
 			in_quotes = not in_quotes
-		elif char == ' ' and not in_quotes:
+		elif char == '(':
+			in_brackets = true
+		elif char == ')':
+			in_brackets = false
+		elif char == ' ' and not in_quotes and not in_brackets:
 			if cur > start:
 				argv.append(line.substr(start, cur - start))
 			start = cur + 1
@@ -406,7 +411,14 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 		var expected_type: int = method_info.args[i - 1].type
 
 		if expected_type == TYPE_STRING:
-			r_args[i - 1] = a.trim_prefix("\"").trim_suffix("\"")
+			r_args[i - 1] = a.trim_prefix('"').trim_suffix('"')
+		elif a.begins_with('(') and a.ends_with(')'):
+			var vec = _str_to_vector(a)
+			if vec != null:
+				r_args[i - 1] = vec
+			else:
+				r_args[i - 1] = a
+				passed = false
 		elif a.is_valid_float():
 			r_args[i - 1] = a.to_float()
 		elif a.is_valid_int():
@@ -416,7 +428,7 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 		elif a == "false" or a == "0" or a == "no":
 			r_args[i - 1] = false
 		else:
-			r_args[i - 1] = a.trim_prefix("\"").trim_suffix("\"")
+			r_args[i - 1] = a.trim_prefix('"').trim_suffix('"')
 
 		var parsed_type: int = typeof(r_args[i - 1])
 
@@ -433,6 +445,40 @@ func _are_compatible_types(p_expected_type: int, p_parsed_type: int) -> bool:
 		p_expected_type == TYPE_NIL or \
 		p_expected_type == TYPE_STRING or \
 		p_expected_type in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT] and p_parsed_type in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT]
+
+
+func _str_to_vector(p_text):
+	assert(p_text.begins_with('(') and p_text.ends_with(')'), "Vector string presentation must begin and end with round brackets")
+	var comp: Array
+	var token: String
+	for i in range(1, p_text.length()):
+		var c: String = p_text[i]
+		if c.is_valid_int() or c == '.':
+			token += c
+		elif c == ',' or c == ' ' or c == ')':
+			if token.is_empty() and c == ',' and p_text[i - 1] in [',', '(']:
+				# Support shorthand notation: (,,1) => (0,0,1)
+				token = '0'
+			if token.is_valid_float():
+				comp.append(token.to_float())
+				token = ""
+			elif not token.is_empty():
+				error("Failed to parse vector argument: Not a number: \"" + token + "\"")
+				info(_format_tip("Tip: Supported formats are (1, 2, 3) and (1 2 3) with 2, 3 and 4 elements."))
+				return null
+		else:
+			error("Failed to parse vector argument: Bad formatting: \"" + p_text + "\"")
+			info(_format_tip("Tip: Supported formats are (1, 2, 3) and (1 2 3) with 2, 3 and 4 elements."))
+			return null
+	if comp.size() == 2:
+		return Vector2(comp[0], comp[1])
+	elif comp.size() == 3:
+		return Vector3(comp[0], comp[1], comp[2])
+	elif comp.size() == 4:
+		return Vector4(comp[0], comp[1], comp[2], comp[3])
+	else:
+		error("LimboConsole supports 2,3,4-element vectors, but %d-element vector given." % [comp.size()])
+		return null
 
 
 ## Returns true if the callable can be registered as a command.
