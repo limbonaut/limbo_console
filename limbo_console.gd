@@ -166,13 +166,18 @@ func _init_theme() -> void:
 
 
 func _greet() -> void:
-	var project_name: String = ProjectSettings.get_setting("application/config/name")
-	if _options.greet_using_ascii_art and AsciiArt.is_boxed_art_supported(project_name):
-		for line in AsciiArt.str_to_boxed_art(project_name):
-			info(line)
-		info("")
-	else:
-		info("[b]" + project_name + "[/b]")
+	var message: String = _options.greeting_message
+	message = message.format({
+		"project_name": ProjectSettings.get_setting("application/config/name"),
+		"project_version": ProjectSettings.get_setting("application/config/version"),
+		})
+	if not message.is_empty():
+		if _options.greet_using_ascii_art and AsciiArt.is_boxed_art_supported(message):
+			for line in AsciiArt.str_to_boxed_art(message):
+				info(line)
+			info("")
+		else:
+			info("[b]" + message + "[/b]")
 	_cmd_help()
 	info(_format_tip("-----"))
 
