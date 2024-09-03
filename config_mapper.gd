@@ -44,7 +44,9 @@ static func load_from_config(p_object: Object, p_config_path: String = "") -> in
 			_msg("ConfigMapper: Processing category: ", prop_info.name)
 			section = prop_info.name
 		if prop_info.usage & PROPERTY_USAGE_SCRIPT_VARIABLE and prop_info.usage & PROPERTY_USAGE_STORAGE:
-			var value = config.get_value(section, prop_info.name, null)
+			var value = null
+			if config.has_section_key(section, prop_info.name):
+				value = config.get_value(section, prop_info.name)
 			if value != null and typeof(value) == prop_info.type:
 				_msg("ConfigMapper: Loaded setting: %s value: %s" % [prop_info.name, value])
 				p_object.set(prop_info.name, value)
