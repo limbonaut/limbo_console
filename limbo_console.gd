@@ -173,8 +173,7 @@ func _greet() -> void:
 		})
 	if not message.is_empty():
 		if _options.greet_using_ascii_art and AsciiArt.is_boxed_art_supported(message):
-			for line in AsciiArt.str_to_boxed_art(message):
-				info(line)
+			print_boxed(message)
 			info("")
 		else:
 			info("[b]" + message + "[/b]")
@@ -257,6 +256,12 @@ func warn(p_line: String) -> void:
 ## Prints a debug message to the console and the output.
 func debug(p_line: String) -> void:
 	_print_line("[color=%s]DEBUG: %s[/color]" % [_output_debug_color.to_html(), p_line])
+
+
+## Prints a line using boxed ASCII art style.
+func print_boxed(p_line: String) -> void:
+	for line in AsciiArt.str_to_boxed_art(p_line):
+		_print_line(line)
 
 
 func _print_line(p_line: String) -> void:
