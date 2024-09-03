@@ -167,7 +167,7 @@ func _init_theme() -> void:
 
 func _greet() -> void:
 	var project_name: String = ProjectSettings.get_setting("application/config/name")
-	if AsciiArt.is_boxed_art_supported(project_name):
+	if _options.greet_using_ascii_art and AsciiArt.is_boxed_art_supported(project_name):
 		for line in AsciiArt.str_to_boxed_art(project_name):
 			info(line)
 		info("")
