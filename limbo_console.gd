@@ -43,6 +43,7 @@ var _command_descriptions: Dictionary
 var _history: PackedStringArray
 var _hist_idx: int = -1
 var _autocomplete_matches: PackedStringArray
+var _silent: bool = false
 
 
 func _init() -> void:
@@ -265,6 +266,8 @@ func print_boxed(p_line: String) -> void:
 
 
 func _print_line(p_line: String) -> void:
+	if _silent:
+		return
 	var line: String = p_line + "\n"
 	_output.text += line
 	if _options.print_to_godot_console:
@@ -336,6 +339,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	var command_name: String = argv[0]
 	var command_args: Array = []
 
+	_silent = p_silent
 	if not p_silent:
 		var history_line: String = " ".join(argv)
 		_push_history(history_line)
@@ -345,6 +349,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	if not has_command(command_name):
 		error("Unknown command: " + command_name)
 		_suggest_similar(argv, 0)
+		_silent = false
 		return
 
 	var dealiased_name: String = _command_aliases.get(command_name, command_name)
@@ -357,6 +362,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		_usage(command_name)
 	if _options.sparse_mode:
 		_print_line("")
+	_silent = false
 
 
 ## Splits the command line string into an array of arguments (aka argv).
@@ -625,6 +631,8 @@ func _clear_autocomplete() -> void:
 
 ## Suggests a similar command to the user and prepares the auto-correction on TAB.
 func _suggest_similar(p_argv: PackedStringArray, p_command_index: int = 0) -> void:
+	if _silent:
+		return
 	var fuzzy_hit: String = _fuzzy_match_command(p_argv[p_command_index], 2)
 	if fuzzy_hit:
 		info("Did you mean %s? %s" % [_format_name(fuzzy_hit), _format_tip("([b]TAB[/b] to fill)")])
