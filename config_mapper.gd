@@ -7,7 +7,7 @@ const CONFIG_PATH_PROPERTY := &"CONFIG_PATH"
 const MAIN_SECTION_PROPERTY := &"MAIN_SECTION"
 const MAIN_SECTION_DEFAULT := "main"
 
-static var verbose: bool = true
+static var verbose: bool = false
 
 static func _get_config_file(p_object: Object) -> String:
 	var from_object_constant = p_object.get(CONFIG_PATH_PROPERTY)
@@ -38,17 +38,16 @@ static func load_from_config(p_object: Object, p_config_path: String = "") -> in
 		return err
 	_msg("ConfigMapper: Loading config: ", config_path)
 
-	# Cache script properties
 	for prop_info in p_object.get_property_list():
-		if prop_info.usage & PROPERTY_USAGE_CATEGORY:
+		if prop_info.usage & PROPERTY_USAGE_CATEGORY and prop_info.hint_string.is_empty():
 			_msg("ConfigMapper: Processing category: ", prop_info.name)
 			section = prop_info.name
-		if prop_info.usage & PROPERTY_USAGE_SCRIPT_VARIABLE and prop_info.usage & PROPERTY_USAGE_STORAGE:
+		elif prop_info.usage & PROPERTY_USAGE_SCRIPT_VARIABLE and prop_info.usage & PROPERTY_USAGE_STORAGE:
 			var value = null
 			if config.has_section_key(section, prop_info.name):
 				value = config.get_value(section, prop_info.name)
 			if value != null and typeof(value) == prop_info.type:
-				_msg("ConfigMapper: Loaded setting: %s value: %s" % [prop_info.name, value])
+				_msg("ConfigMapper: Loaded setting: %s section: %s value: %s" % [prop_info.name, section, value])
 				p_object.set(prop_info.name, value)
 	_msg("ConfigMapper: Finished with code: ", OK)
 	return OK
@@ -66,11 +65,11 @@ static func save_to_config(p_object: Object, p_config_path: String = "") -> int:
 	_msg("ConfigMapper: Saving config: ", config_path)
 
 	for prop_info in p_object.get_property_list():
-		if prop_info.usage & PROPERTY_USAGE_CATEGORY:
+		if prop_info.usage & PROPERTY_USAGE_CATEGORY and prop_info.hint_string.is_empty():
 			_msg("ConfigMapper: Processing category: ", prop_info.name)
 			section = prop_info.name
 		elif prop_info.usage & PROPERTY_USAGE_SCRIPT_VARIABLE and prop_info.usage & PROPERTY_USAGE_STORAGE:
-			_msg("ConfigMapper: Saving setting: %s value: %s" % [prop_info.name, p_object.get(prop_info.name)])
+			_msg("ConfigMapper: Saving setting: %s section: %s value: %s" % [prop_info.name, section, p_object.get(prop_info.name)])
 			config.set_value(section, prop_info.name, p_object.get(prop_info.name))
 
 	var err: int = config.save(config_path)
