@@ -355,6 +355,8 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		cmd.callv(command_args)
 	else:
 		_usage(command_name)
+	if _options.sparse_mode:
+		_print_line("")
 
 
 ## Splits the command line string into an array of arguments (aka argv).

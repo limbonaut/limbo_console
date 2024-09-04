@@ -6,6 +6,9 @@ const CONFIG_PATH := "res://addons/limbo_console.cfg"
 @export var custom_theme: String = "res://addons/limbo_console_theme.tres"
 @export var print_to_godot_console: bool = true
 
+## Print empty line after each command execution.
+@export var sparse_mode: bool = false
+
 @export_category("greet")
 @export var greet_user: bool = true
 @export var greeting_message: String = "{project_name}"
