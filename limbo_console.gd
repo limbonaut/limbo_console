@@ -19,8 +19,6 @@ var enabled: bool = true:
 		if not enabled and _control.visible:
 			hide_console()
 
-var _options: ConsoleOptions
-
 var _control: Control
 var _output: RichTextLabel
 var _entry: CommandEntry
@@ -37,6 +35,7 @@ var _entry_hint_color: Color
 var _entry_command_found_color: Color
 var _entry_command_not_found_color: Color
 
+var _options: ConsoleOptions
 var _commands: Dictionary
 var _command_aliases: Dictionary
 var _command_descriptions: Dictionary
@@ -66,28 +65,7 @@ func _init() -> void:
 	if _options.greet_user:
 		_greet()
 
-	register_command(_cmd_aliases, "aliases", "list all aliases")
-	register_command(clear_console, "clear", "clear console screen")
-	register_command(_cmd_commands, "commands", "list all commands")
-	register_command(info, "echo", "display a line of text")
-	register_command(_cmd_help, "help", "show command info")
-	register_command(_cmd_fps_max, "fps_max", "limit framerate")
-	register_command(_cmd_fullscreen, "fullscreen", "toggle fullscreen mode")
-	register_command(_cmd_quit, "quit", "exit the application")
-	register_command(_cmd_vsync, "vsync", "adjust V-Sync")
-
-	for alias in _options.aliases:
-		var target = _options.aliases[alias]
-		if not alias is String:
-			push_error("LimboConsole: Config error: Alias name should be String")
-		elif not target is String:
-			push_error("LimboConsole: Config error: Alias target should be String")
-		elif has_command(alias):
-			push_error("LimboConsole: Config error: Alias or command already registered: ", alias)
-		elif not has_command(target):
-			push_error("LimboConsole: Config error: Alias target not found: ", target)
-		else:
-			add_alias(alias, target)
+	_init_commands()
 
 
 func _exit_tree() -> void:
@@ -95,26 +73,26 @@ func _exit_tree() -> void:
 		_save_history()
 
 
-func _input(event: InputEvent) -> void:
-	if event.is_echo():
+func _input(p_event: InputEvent) -> void:
+	if p_event.is_echo():
 		return
-	if event.is_action_pressed("limbo_console_toggle"):
+	if p_event.is_action_pressed("limbo_console_toggle"):
 		toggle_console()
 		get_viewport().set_input_as_handled()
-	elif _control.visible and event is InputEventKey and event.is_pressed():
+	elif _control.visible and p_event is InputEventKey and p_event.is_pressed():
 		var handled := true
-		if event.keycode == KEY_UP:
+		if p_event.keycode == KEY_UP:
 			_hist_idx += 1
 			_fill_from_history()
-		elif event.keycode == KEY_DOWN:
+		elif p_event.keycode == KEY_DOWN:
 			_hist_idx -= 1
 			_fill_from_history()
-		elif event.keycode == KEY_TAB:
+		elif p_event.keycode == KEY_TAB:
 			_autocomplete()
-		elif event.keycode == KEY_PAGEUP:
+		elif p_event.keycode == KEY_PAGEUP:
 			var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
 			scroll_bar.value -= scroll_bar.page
-		elif event.keycode == KEY_PAGEDOWN:
+		elif p_event.keycode == KEY_PAGEDOWN:
 			var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
 			scroll_bar.value += scroll_bar.page
 		else:
@@ -123,99 +101,7 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
-func _build_gui() -> void:
-	var panel := PanelContainer.new()
-	_control = panel
-	panel.anchor_bottom = 0.5
-	panel.anchor_right = 1.0
-	add_child(panel)
-
-	var vbox := VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	panel.add_child(vbox)
-
-	_output = RichTextLabel.new()
-	_output.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_output.scroll_active = true
-	_output.scroll_following = true
-	_output.bbcode_enabled = true
-	_output.focus_mode = Control.FOCUS_CLICK
-	vbox.add_child(_output)
-
-	_entry = CommandEntry.new()
-	vbox.add_child(_entry)
-
-
-func _init_theme() -> void:
-	var theme: Theme
-	if ResourceLoader.exists(_options.custom_theme, "Theme"):
-		print("Using custom theme")
-		theme = load(_options.custom_theme)
-	else:
-		print("Using default theme")
-		theme = load(THEME_DEFAULT)
-	_control.theme = theme
-
-	const CONSOLE_COLORS_THEME_TYPE := &"ConsoleColors"
-	_output_command_color = theme.get_color(&"output_command_color", CONSOLE_COLORS_THEME_TYPE)
-	_output_command_mention_color = theme.get_color(&"output_command_mention_color", CONSOLE_COLORS_THEME_TYPE)
-	_output_text_color = theme.get_color(&"output_text_color", CONSOLE_COLORS_THEME_TYPE)
-	_output_error_color = theme.get_color(&"output_error_color", CONSOLE_COLORS_THEME_TYPE)
-	_output_warning_color = theme.get_color(&"output_warning_color", CONSOLE_COLORS_THEME_TYPE)
-	_output_debug_color = theme.get_color(&"output_debug_color", CONSOLE_COLORS_THEME_TYPE)
-	_entry_text_color = theme.get_color(&"entry_text_color", CONSOLE_COLORS_THEME_TYPE)
-	_entry_hint_color = theme.get_color(&"entry_hint_color", CONSOLE_COLORS_THEME_TYPE)
-	_entry_command_found_color = theme.get_color(&"entry_command_found_color", CONSOLE_COLORS_THEME_TYPE)
-	_entry_command_not_found_color = theme.get_color(&"entry_command_not_found_color", CONSOLE_COLORS_THEME_TYPE)
-
-	_output.add_theme_color_override(&"default_color", _output_text_color)
-	_entry.add_theme_color_override(&"font_color", _entry_text_color)
-	_entry.add_theme_color_override(&"hint_color", _entry_hint_color)
-	_entry.syntax_highlighter.command_found_color = _entry_command_found_color
-	_entry.syntax_highlighter.command_not_found_color = _entry_command_not_found_color
-	_entry.syntax_highlighter.text_color = _entry_text_color
-
-
-func _greet() -> void:
-	var message: String = _options.greeting_message
-	message = message.format({
-		"project_name": ProjectSettings.get_setting("application/config/name"),
-		"project_version": ProjectSettings.get_setting("application/config/version"),
-		})
-	if not message.is_empty():
-		if _options.greet_using_ascii_art and AsciiArt.is_boxed_art_supported(message):
-			print_boxed(message)
-			info("")
-		else:
-			info("[b]" + message + "[/b]")
-	_cmd_help()
-	info(_format_tip("-----"))
-
-
-func _load_history() -> void:
-	var file := FileAccess.open(HISTORY_FILE, FileAccess.READ)
-	if not file:
-		return
-	while not file.eof_reached():
-		var line: String = file.get_line().strip_edges()
-		if not line.is_empty():
-			_history.append(line)
-	file.close()
-
-
-func _save_history() -> void:
-	# Trim history first
-	var max_lines: int = maxi(_options.history_lines, 0)
-	if _history.size() > max_lines:
-		_history = _history.slice(_history.size() - max_lines)
-
-	var file := FileAccess.open(HISTORY_FILE, FileAccess.WRITE)
-	if not file:
-		push_error("LimboConsole: Failed to save console history to file: ", HISTORY_FILE)
-		return
-	for line in _history:
-		file.store_line(line)
-	file.close()
+# *** PUBLIC INTERFACE
 
 
 func show_console() -> void:
@@ -375,6 +261,144 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	_silent = false
 
 
+## Formats the tip text (hopefully useful ;).
+func format_tip(p_text: String) -> String:
+	return "[i][color=" + _output_debug_color.to_html() + "]" + p_text + "[/color][/i]"
+
+
+## Formats the command name for display.
+func format_name(p_name: String) -> String:
+	return "[color=" + _output_command_mention_color.to_html() + "]" + p_name + "[/color]"
+
+
+# *** PRIVATE
+
+# *** INITIALIZATION
+
+
+func _build_gui() -> void:
+	var panel := PanelContainer.new()
+	_control = panel
+	panel.anchor_bottom = 0.5
+	panel.anchor_right = 1.0
+	add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.add_child(vbox)
+
+	_output = RichTextLabel.new()
+	_output.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_output.scroll_active = true
+	_output.scroll_following = true
+	_output.bbcode_enabled = true
+	_output.focus_mode = Control.FOCUS_CLICK
+	vbox.add_child(_output)
+
+	_entry = CommandEntry.new()
+	vbox.add_child(_entry)
+
+
+func _init_theme() -> void:
+	var theme: Theme
+	if ResourceLoader.exists(_options.custom_theme, "Theme"):
+		print("Using custom theme")
+		theme = load(_options.custom_theme)
+	else:
+		print("Using default theme")
+		theme = load(THEME_DEFAULT)
+	_control.theme = theme
+
+	const CONSOLE_COLORS_THEME_TYPE := &"ConsoleColors"
+	_output_command_color = theme.get_color(&"output_command_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_command_mention_color = theme.get_color(&"output_command_mention_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_text_color = theme.get_color(&"output_text_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_error_color = theme.get_color(&"output_error_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_warning_color = theme.get_color(&"output_warning_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_debug_color = theme.get_color(&"output_debug_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_text_color = theme.get_color(&"entry_text_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_hint_color = theme.get_color(&"entry_hint_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_command_found_color = theme.get_color(&"entry_command_found_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_command_not_found_color = theme.get_color(&"entry_command_not_found_color", CONSOLE_COLORS_THEME_TYPE)
+
+	_output.add_theme_color_override(&"default_color", _output_text_color)
+	_entry.add_theme_color_override(&"font_color", _entry_text_color)
+	_entry.add_theme_color_override(&"hint_color", _entry_hint_color)
+	_entry.syntax_highlighter.command_found_color = _entry_command_found_color
+	_entry.syntax_highlighter.command_not_found_color = _entry_command_not_found_color
+	_entry.syntax_highlighter.text_color = _entry_text_color
+
+
+func _greet() -> void:
+	var message: String = _options.greeting_message
+	message = message.format({
+		"project_name": ProjectSettings.get_setting("application/config/name"),
+		"project_version": ProjectSettings.get_setting("application/config/version"),
+		})
+	if not message.is_empty():
+		if _options.greet_using_ascii_art and AsciiArt.is_boxed_art_supported(message):
+			print_boxed(message)
+			info("")
+		else:
+			info("[b]" + message + "[/b]")
+	_cmd_help()
+	info(format_tip("-----"))
+
+
+func _init_commands() -> void:
+	register_command(_cmd_aliases, "aliases", "list all aliases")
+	register_command(clear_console, "clear", "clear console screen")
+	register_command(_cmd_commands, "commands", "list all commands")
+	register_command(info, "echo", "display a line of text")
+	register_command(_cmd_help, "help", "show command info")
+	register_command(_cmd_fps_max, "fps_max", "limit framerate")
+	register_command(_cmd_fullscreen, "fullscreen", "toggle fullscreen mode")
+	register_command(_cmd_quit, "quit", "exit the application")
+	register_command(_cmd_vsync, "vsync", "adjust V-Sync")
+
+	for alias in _options.aliases:
+		var target = _options.aliases[alias]
+		if not alias is String:
+			push_error("LimboConsole: Config error: Alias name should be String")
+		elif not target is String:
+			push_error("LimboConsole: Config error: Alias target should be String")
+		elif has_command(alias):
+			push_error("LimboConsole: Config error: Alias or command already registered: ", alias)
+		elif not has_command(target):
+			push_error("LimboConsole: Config error: Alias target not found: ", target)
+		else:
+			add_alias(alias, target)
+
+
+func _load_history() -> void:
+	var file := FileAccess.open(HISTORY_FILE, FileAccess.READ)
+	if not file:
+		return
+	while not file.eof_reached():
+		var line: String = file.get_line().strip_edges()
+		if not line.is_empty():
+			_history.append(line)
+	file.close()
+
+
+func _save_history() -> void:
+	# Trim history first
+	var max_lines: int = maxi(_options.history_lines, 0)
+	if _history.size() > max_lines:
+		_history = _history.slice(_history.size() - max_lines)
+
+	var file := FileAccess.open(HISTORY_FILE, FileAccess.WRITE)
+	if not file:
+		push_error("LimboConsole: Failed to save console history to file: ", HISTORY_FILE)
+		return
+	for line in _history:
+		file.store_line(line)
+	file.close()
+
+
+# *** PARSING
+
+
 ## Splits the command line string into an array of arguments (aka argv).
 func _parse_command_line(p_line: String) -> PackedStringArray:
 	var argv: PackedStringArray = []
@@ -482,11 +506,11 @@ func _str_to_vector(p_text):
 				token = ""
 			elif not token.is_empty():
 				error("Failed to parse vector argument: Not a number: \"" + token + "\"")
-				info(_format_tip("Tip: Supported formats are (1, 2, 3) and (1 2 3) with 2, 3 and 4 elements."))
+				info(format_tip("Tip: Supported formats are (1, 2, 3) and (1 2 3) with 2, 3 and 4 elements."))
 				return null
 		else:
 			error("Failed to parse vector argument: Bad formatting: \"" + p_text + "\"")
-			info(_format_tip("Tip: Supported formats are (1, 2, 3) and (1 2 3) with 2, 3 and 4 elements."))
+			info(format_tip("Tip: Supported formats are (1, 2, 3) and (1 2 3) with 2, 3 and 4 elements."))
 			return null
 	if comp.size() == 2:
 		return Vector2(comp[0], comp[1])
@@ -499,104 +523,7 @@ func _str_to_vector(p_text):
 		return null
 
 
-## Returns true if the callable can be registered as a command.
-func _validate_callable(p_callable: Callable) -> bool:
-	var method_info: Dictionary = _get_method_info(p_callable)
-	if method_info.is_empty():
-		error("Couldn't find method info for: " + p_callable.get_method())
-		return false
-
-	var ret := true
-	for arg in method_info.args:
-		if not arg.type in [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING]:
-			error("Unsupported argument type: %s is %s" % [arg.name, type_string(arg.type)])
-			ret = false
-	return ret
-
-
-func _get_method_info(p_callable: Callable) -> Dictionary:
-	var method_info: Dictionary
-	var method_list: Array[Dictionary]
-	method_list = p_callable.get_object().get_method_list()
-	for m in method_list:
-		if m.name == p_callable.get_method():
-			method_info = m
-			break
-	return method_info
-
-
-## Prints the help text for the given command.
-func _usage(p_command_name: String) -> void:
-	if not has_command(p_command_name):
-		error("Command not found: " + _format_name(p_command_name))
-		_suggest_similar(_parse_command_line(_history[_history.size() - 1]), 1)
-		return
-
-	var dealiased_name: String = _command_aliases.get(p_command_name, p_command_name)
-	if dealiased_name != p_command_name:
-		_print_line("Alias of " + _format_name(dealiased_name) + ".")
-
-	var callable: Callable = _commands[dealiased_name]
-	var method_info: Dictionary = _get_method_info(callable)
-	if method_info.is_empty():
-		error("Couldn't find method info for: " + callable.get_method())
-		_print_line("Usage: ???")
-		return
-
-	var usage_line: String = "Usage: %s" % [dealiased_name]
-	var arg_lines: String = ""
-	var required_args: int = method_info.args.size() - method_info.default_args.size()
-
-	for i in range(method_info.args.size()):
-		var arg_name: String = method_info.args[i].name.trim_prefix("p_")
-		var arg_type: int = method_info.args[i].type
-		if i < required_args:
-			usage_line += " " + arg_name
-		else:
-			usage_line += " [lb]" + arg_name + "[rb]"
-		var def_spec: String = ""
-		var num_required_args: int = method_info.args.size() - method_info.default_args.size()
-		if i >= num_required_args:
-			var def_value = method_info.default_args[i - num_required_args]
-			if typeof(def_value) == TYPE_STRING:
-				def_value = "\"" + def_value + "\""
-			def_spec = " = %s" % [def_value]
-		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
-
-	_print_line(usage_line)
-
-	var desc_line: String = ""
-	desc_line = _command_descriptions.get(dealiased_name, "")
-	if not desc_line.is_empty():
-		desc_line[0] = desc_line[0].capitalize()
-		if desc_line.right(1) != ".":
-			desc_line += "."
-		_print_line(desc_line)
-
-	if not arg_lines.is_empty():
-		_print_line("Arguments:")
-		_print_line(arg_lines)
-
-
-func _fill_command_entry(p_line: String) -> void:
-	_entry.text = p_line
-	_entry.set_caret_column(p_line.length())
-
-
-func _fill_from_history() -> void:
-	_hist_idx = wrapi(_hist_idx, -1, _history.size())
-	if _hist_idx < 0:
-		_fill_command_entry("")
-	else:
-		_fill_command_entry(_history[_history.size() - _hist_idx - 1])
-
-
-func _push_history(p_line: String) -> void:
-	var idx: int = _history.find(p_line)
-	if idx != -1:
-		_history.remove_at(idx)
-	_history.append(p_line)
-	_hist_idx = -1
+# *** AUTOCOMPLETE
 
 
 ## Auto-completes a command or auto-correction on TAB.
@@ -645,7 +572,7 @@ func _suggest_similar(p_argv: PackedStringArray, p_command_index: int = 0) -> vo
 		return
 	var fuzzy_hit: String = _fuzzy_match_command(p_argv[p_command_index], 2)
 	if fuzzy_hit:
-		info("Did you mean %s? %s" % [_format_name(fuzzy_hit), _format_tip("([b]TAB[/b] to fill)")])
+		info("Did you mean %s? %s" % [format_name(fuzzy_hit), format_tip("([b]TAB[/b] to fill)")])
 		var argv := p_argv.duplicate()
 		argv[p_command_index] = fuzzy_hit
 		var suggest_command: String = " ".join(argv)
@@ -711,14 +638,107 @@ func _calculate_osa_distance(s1: String, s2: String) -> int:
 	return row1[s2_len]
 
 
-## Formats the command name for display.
-func _format_name(p_name: String) -> String:
-	return "[color=" + _output_command_mention_color.to_html() + "]" + p_name + "[/color]"
+# *** MISC
 
 
-## Formats the helpful tip text (hopefully).
-func _format_tip(p_text: String) -> String:
-	return "[i][color=" + _output_debug_color.to_html() + "]" + p_text + "[/color][/i]"
+func _get_method_info(p_callable: Callable) -> Dictionary:
+	var method_info: Dictionary
+	var method_list: Array[Dictionary]
+	method_list = p_callable.get_object().get_method_list()
+	for m in method_list:
+		if m.name == p_callable.get_method():
+			method_info = m
+			break
+	return method_info
+
+
+## Returns true if the callable can be registered as a command.
+func _validate_callable(p_callable: Callable) -> bool:
+	var method_info: Dictionary = _get_method_info(p_callable)
+	if method_info.is_empty():
+		error("Couldn't find method info for: " + p_callable.get_method())
+		return false
+
+	var ret := true
+	for arg in method_info.args:
+		if not arg.type in [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING]:
+			error("Unsupported argument type: %s is %s" % [arg.name, type_string(arg.type)])
+			ret = false
+	return ret
+
+
+## Prints the help text for the given command.
+func _usage(p_command_name: String) -> void:
+	if not has_command(p_command_name):
+		error("Command not found: " + format_name(p_command_name))
+		_suggest_similar(_parse_command_line(_history[_history.size() - 1]), 1)
+		return
+
+	var dealiased_name: String = _command_aliases.get(p_command_name, p_command_name)
+	if dealiased_name != p_command_name:
+		_print_line("Alias of " + format_name(dealiased_name) + ".")
+
+	var callable: Callable = _commands[dealiased_name]
+	var method_info: Dictionary = _get_method_info(callable)
+	if method_info.is_empty():
+		error("Couldn't find method info for: " + callable.get_method())
+		_print_line("Usage: ???")
+		return
+
+	var usage_line: String = "Usage: %s" % [dealiased_name]
+	var arg_lines: String = ""
+	var required_args: int = method_info.args.size() - method_info.default_args.size()
+
+	for i in range(method_info.args.size()):
+		var arg_name: String = method_info.args[i].name.trim_prefix("p_")
+		var arg_type: int = method_info.args[i].type
+		if i < required_args:
+			usage_line += " " + arg_name
+		else:
+			usage_line += " [lb]" + arg_name + "[rb]"
+		var def_spec: String = ""
+		var num_required_args: int = method_info.args.size() - method_info.default_args.size()
+		if i >= num_required_args:
+			var def_value = method_info.default_args[i - num_required_args]
+			if typeof(def_value) == TYPE_STRING:
+				def_value = "\"" + def_value + "\""
+			def_spec = " = %s" % [def_value]
+		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
+
+	_print_line(usage_line)
+
+	var desc_line: String = ""
+	desc_line = _command_descriptions.get(dealiased_name, "")
+	if not desc_line.is_empty():
+		desc_line[0] = desc_line[0].capitalize()
+		if desc_line.right(1) != ".":
+			desc_line += "."
+		_print_line(desc_line)
+
+	if not arg_lines.is_empty():
+		_print_line("Arguments:")
+		_print_line(arg_lines)
+
+
+func _fill_command_entry(p_line: String) -> void:
+	_entry.text = p_line
+	_entry.set_caret_column(p_line.length())
+
+
+func _fill_from_history() -> void:
+	_hist_idx = wrapi(_hist_idx, -1, _history.size())
+	if _hist_idx < 0:
+		_fill_command_entry("")
+	else:
+		_fill_command_entry(_history[_history.size() - _hist_idx - 1])
+
+
+func _push_history(p_line: String) -> void:
+	var idx: int = _history.find(p_line)
+	if idx != -1:
+		_history.remove_at(idx)
+	_history.append(p_line)
+	_hist_idx = -1
 
 
 func _on_entry_text_submitted(p_command: String) -> void:
@@ -743,7 +763,7 @@ func _cmd_aliases() -> void:
 	for alias in aliases:
 		var dealiased_name = _command_aliases.get(alias, alias)
 		var desc: String = _command_descriptions.get(dealiased_name, "")
-		info(_format_name(alias) if desc.is_empty() else "%s -- same as %s; %s" % [_format_name(alias), _format_name(dealiased_name), desc])
+		info(format_name(alias) if desc.is_empty() else "%s -- same as %s; %s" % [format_name(alias), format_name(dealiased_name), desc])
 
 
 func _cmd_commands() -> void:
@@ -752,7 +772,7 @@ func _cmd_commands() -> void:
 	command_names.sort()
 	for name in command_names:
 		var desc: String = _command_descriptions.get(name, "")
-		info(_format_name(name) if desc.is_empty() else "%s -- %s" % [_format_name(name), desc])
+		info(format_name(name) if desc.is_empty() else "%s -- %s" % [format_name(name), desc])
 
 
 func _cmd_fps_max(p_limit: int = -1) -> void:
@@ -782,8 +802,8 @@ func _cmd_fullscreen() -> void:
 
 func _cmd_help(p_command_name: String = "") -> void:
 	if p_command_name.is_empty():
-		_print_line(_format_tip("Type %s to list all available commands." % [_format_name("commands")]))
-		_print_line(_format_tip("Type %s to get more info about the command." % [_format_name("help command")]))
+		_print_line(format_tip("Type %s to list all available commands." % [format_name("commands")]))
+		_print_line(format_tip("Type %s to get more info about the command." % [format_name("help command")]))
 	else:
 		_usage(p_command_name)
 
