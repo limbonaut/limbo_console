@@ -3,6 +3,10 @@ extends RefCounted
 # Configuration is outside of limbo_console directory for compatibility with GIT submodules
 const CONFIG_PATH := "res://addons/limbo_console.cfg"
 
+@export var aliases := {
+	"usage": "help",
+	"exit": "quit",
+}
 @export var custom_theme: String = "res://addons/limbo_console_theme.tres"
 @export var print_to_godot_console: bool = true
 

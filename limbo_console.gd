@@ -76,8 +76,18 @@ func _init() -> void:
 	register_command(_cmd_quit, "quit", "exit the application")
 	register_command(_cmd_vsync, "vsync", "adjust V-Sync")
 
-	add_alias("usage", "help")
-	add_alias("exit", "quit")
+	for alias in _options.aliases:
+		var target = _options.aliases[alias]
+		if not alias is String:
+			push_error("LimboConsole: Config error: Alias name should be String")
+		elif not target is String:
+			push_error("LimboConsole: Config error: Alias target should be String")
+		elif has_command(alias):
+			push_error("LimboConsole: Config error: Alias or command already registered: ", alias)
+		elif not has_command(target):
+			push_error("LimboConsole: Config error: Alias target not found: ", target)
+		else:
+			add_alias(alias, target)
 
 
 func _exit_tree() -> void:
