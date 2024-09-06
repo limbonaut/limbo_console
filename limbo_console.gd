@@ -36,9 +36,10 @@ var _entry_command_found_color: Color
 var _entry_command_not_found_color: Color
 
 var _options: ConsoleOptions
-var _commands: Dictionary
-var _command_aliases: Dictionary
-var _command_descriptions: Dictionary
+var _commands: Dictionary # command_name => Callable
+var _command_aliases: Dictionary # alias_name => command_name
+var _command_descriptions: Dictionary # command_name => description_text
+var _argument_autocomplete_sources: Dictionary # [command_name, arg_idx] => Callable
 var _history: PackedStringArray
 var _hist_idx: int = -1
 var _autocomplete_matches: PackedStringArray
@@ -177,16 +178,16 @@ func _print_line(p_line: String) -> void:
 ## Optionally, you can provide a name and a description.
 func register_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
 	if not _validate_callable(p_func):
-		error("Failed to register command: %s" % [p_func if p_name.is_empty() else p_name])
+		push_error("LimboConsole: Failed to register command: %s" % [p_func if p_name.is_empty() else p_name])
 		return
 	var name: String = p_name
 	if name.is_empty():
 		name = p_func.get_method().trim_prefix("_cmd").trim_prefix("_")
 	if _commands.has(name):
-		error("Command already registered: " + p_name)
+		push_error("LimboConsole: Command already registered: " + p_name)
 		return
 	if _command_aliases.has(name):
-		warn("Command alias exists with the same name: " + p_name)
+		push_warning("LimboConsole: Command alias exists with the same name: " + p_name)
 	_commands[name] = p_func
 	_command_descriptions[name] = p_desc
 
@@ -201,10 +202,14 @@ func unregister_command(p_func_or_name) -> void:
 	elif p_func_or_name is String:
 		cmd_name = p_func_or_name
 	if cmd_name.is_empty() or not _commands.has(cmd_name):
-		error("Unregister failed - command not found: " % [p_func_or_name])
+		push_error("LimboConsole: Unregister failed - command not found: " % [p_func_or_name])
 		return
+
 	_commands.erase(cmd_name)
 	_command_descriptions.erase(cmd_name)
+
+	for i in range(1, 5):
+		_argument_autocomplete_sources.erase([cmd_name, i])
 
 
 ## Is a command or an alias registered by the given name.
@@ -215,10 +220,10 @@ func has_command(p_name: String) -> bool:
 ## Adds an alias for an existing command.
 func add_alias(p_alias: String, p_existing: String) -> void:
 	if has_command(p_alias):
-		error("Command or alias already registered: " + p_alias)
+		push_error("LimboConsole: Command or alias already registered: " + p_alias)
 		return
 	if not has_command(p_existing):
-		error("Command not found: " + p_existing)
+		push_error("LimboConsole: Command not found: " + p_existing)
 		return
 	_command_aliases[p_alias] = p_existing
 
@@ -226,6 +231,22 @@ func add_alias(p_alias: String, p_existing: String) -> void:
 ## Removes an alias by name.
 func remove_alias(p_name: String) -> void:
 	_command_aliases.erase(p_name)
+
+
+## Registers a callable that should return an array of possible values for the given argument and command.
+## It will be used for autocompletion.
+func add_argument_autocomplete_source(p_command: String, p_argument: int, p_source: Callable) -> void:
+	if not p_source.is_valid():
+		push_error("LimboConsole: Can't add autocomplete source: source callable is not valid")
+		return
+	if not has_command(p_command):
+		push_error("LimboConsole: Can't add autocomplete source: command doesn't exist: ", p_command)
+		return
+	if p_argument < 1 or p_argument > 5:
+		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
+		return
+	var key := [p_command, p_argument]
+	_argument_autocomplete_sources[key] = p_source
 
 
 ## Parses the command line and executes the command if it's valid.
@@ -371,6 +392,8 @@ func _init_commands() -> void:
 			push_error("LimboConsole: Config error: Alias target not found: ", target)
 		else:
 			add_alias(alias, target)
+
+	add_argument_autocomplete_source("help", 1, func(): return _commands.keys())
 
 
 func _load_history() -> void:
@@ -542,16 +565,31 @@ func _autocomplete() -> void:
 ## Updates autocomplete suggestions and hint based on user input.
 func _update_autocomplete() -> void:
 	var argv: PackedStringArray = _parse_command_line(_entry.text)
-	var is_typing_command_name: bool = argv.size() <= 1 and _entry.text.right(1) != ' '
+	if _entry.text.right(1) == ' ' or argv.size() == 0:
+		argv.append("")
+	var command_name: String = argv[0]
+	var last_arg: int = argv.size() - 1
 
 	if _autocomplete_matches.is_empty() and not _entry.text.is_empty():
-		if is_typing_command_name:
+		if last_arg == 0:
+			# Command name
 			var line: String = _entry.text
 			for k in _commands:
 				if k.begins_with(line):
 					_autocomplete_matches.append(k)
 			_autocomplete_matches.sort()
 		else:
+			# Arguments
+			var key := [command_name, last_arg]
+			if _argument_autocomplete_sources.has(key) and not argv[last_arg].is_empty():
+				var argument_values = _argument_autocomplete_sources[key].call()
+				var matches: PackedStringArray = []
+				for value in argument_values:
+					if str(value).begins_with(argv[last_arg]):
+						matches.append(_entry.text.substr(0, _entry.text.length() - argv[last_arg].length()) + str(value))
+				matches.sort()
+				_autocomplete_matches.append_array(matches)
+			# History
 			for i in range(_history.size() - 1, -1, -1):
 				if _history[i].begins_with(_entry.text):
 					_autocomplete_matches.append(_history[i])
