@@ -67,6 +67,9 @@ func _init() -> void:
 
 	_init_commands()
 
+	if _options.disable_in_release_build:
+		enabled = OS.is_debug_build()
+
 
 func _exit_tree() -> void:
 	if _options.persist_history:

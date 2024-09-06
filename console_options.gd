@@ -8,6 +8,7 @@ const CONFIG_PATH := "res://addons/limbo_console.cfg"
 	"exit": "quit",
 }
 @export var custom_theme: String = "res://addons/limbo_console_theme.tres"
+@export var disable_in_release_build: bool = false
 @export var print_to_godot_console: bool = true
 
 ## Print empty line after each command execution.
