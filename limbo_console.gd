@@ -583,6 +583,10 @@ func _update_autocomplete() -> void:
 			var key := [command_name, last_arg]
 			if _argument_autocomplete_sources.has(key) and not argv[last_arg].is_empty():
 				var argument_values = _argument_autocomplete_sources[key].call()
+				if typeof(argument_values) < TYPE_ARRAY:
+					push_error("LimboConsole: Argument autocomplete source returned unsupported type: ",
+							type_string(typeof(argument_values)), " command: ", command_name)
+					argument_values = []
 				var matches: PackedStringArray = []
 				for value in argument_values:
 					if str(value).begins_with(argv[last_arg]):
