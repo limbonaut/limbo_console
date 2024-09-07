@@ -1,0 +1,78 @@
+<p align="left">
+  <img src=".github/logo.png" width=128 alt="LimboConsole logo">
+</p>
+
+# LimboConsole
+
+![Static Badge](https://img.shields.io/badge/Godot-4.3-blue?style=flat)
+[![GitHub License](https://img.shields.io/github/license/limbonaut/limbo_console)](https://github.com/limbonaut/limbo_console/blob/master/LICENSE.md)
+
+A simple and easy-to-use in-game dev console with a command interpreter for Godot Engine 4.
+
+It supports auto-completion with `TAB` for commands and history, auto-correction, inline hints and highlighting, command help text generation, argument parsing for basic types, aliases, custom theming, and more.
+
+This plugin is currently in development, so expect breaking changes.
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Y8Y2TCNH0)
+
+## How to use
+
+> 🛈 LimboConsole can be added as a Git submodule
+
+Place the source code in the `res://addons/limbo_console/` directory, and enable this plugin in the project settings. Toggle the console with the `~` key (this can be changed in the Input Map tab in the project settings).
+
+Adding a new command is quite simple:
+
+```gdscript
+func _ready() -> void:
+	LimboConsole.register_command(multiply)
+
+func multiply(a: float, b: float) -> void:
+	LimboConsole.info("a * b: " + str(a * b))
+```
+
+The example above adds a command that multiplies two numbers and prints the result (type `multiply 2 4`). Additionally, you can specify a name and a description:
+
+```gdscript
+	LimboConsole.register_command(multiply, "multiply", "multiply two numbers")
+```
+
+Several basic types are supported for command arguments, such as `bool`, `int`, `float`, `String` and `Vector{2,3,4}` types. To enter a `Vector2` argument, enclose its components in round brackets, like this: `(1 2)`. String arguments can also be enclosed in double quotation marks `"`.
+
+Autocompletion can be implemented for any given command argument:
+```gdscript
+LimboConsole.register_command(teleport, "teleport", "teleport to site on this level")
+LimboConsole.add_argument_autocomplete_source("teleport", 1,
+		func(): return ["entrance", "caves", "boss"]
+	)
+```
+For a dynamically built list of autocomplete values the code could look like this:
+```gdscript
+LimboConsole.add_argument_autocomplete_source("teleport", 1,
+		func(): return get_tree().get_nodes_in_group("teleportation_site").map(
+						func(node): return node.name)
+	)
+```
+
+### Methods and properties
+
+Some notable methods and properties:
+
+- LimboConsole.enabled
+- LimboConsole.register_command(callable, command_name, description)
+- LimboConsole.unregister_command(callable_or_command_name)
+- LimboConsole.add_alias(alias_name, command_name)
+- LimboConsole.info(text_line)
+- LimboConsole.error(text_line)
+- LimboConsole.warning(text_line)
+- LimboConsole.toggle_console()
+- LimboConsole.add_argument_autocomplete_source(command_name, argument, callable)
+
+This is not a complete list. For the rest, check out `limbo_console.gd`.
+
+### Configuration
+
+Options can be modified in the project-specific configuration file located at `res://addons/limbo_console.cfg`. This file is stored outside the plugin's directory to support adding the plugin as a Git submodule.
+
+LimboConsole also supports UI theming. Simply duplicate the `default_theme.tres` file and rename it to `limbo_console_theme.tres`. The file path is important - it should be located at `res://addons/limbo_console_theme.tres`. You can change this location in the config file.
+Open the theme resource in Godot to customize it for your game. Console text colors can be adjusted in the `ConsoleColors` category.
