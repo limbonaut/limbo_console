@@ -34,10 +34,10 @@ func multiply(a: float, b: float) -> void:
 The example above adds a command that multiplies two numbers and prints the result (type `multiply 2 4`). Additionally, you can specify a name and a description:
 
 ```gdscript
-	LimboConsole.register_command(multiply, "multiply", "multiply two numbers")
+LimboConsole.register_command(multiply, "multiply", "multiply two numbers")
 ```
 
-Several basic types are supported for command arguments, such as `bool`, `int`, `float`, `String` and `Vector{2,3,4}` types. To enter a `Vector2` argument, enclose its components in round brackets, like this: `(1 2)`. String arguments can also be enclosed in double quotation marks `"`.
+Several basic types are supported for command arguments, such as `bool`, `int`, `float`, `String` and `Vector{2,3,4}` types. To enter a `Vector2` argument, enclose its components in parentheses, like this: `(1 2)`. String arguments can also be enclosed in double quotation marks `"`.
 
 Autocompletion can be implemented for any given command argument:
 ```gdscript
