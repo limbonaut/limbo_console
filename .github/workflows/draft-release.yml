@@ -3,25 +3,45 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      base-ref:
+        type: string
+        default: ""
 
 jobs:
   draft-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Initialize version
+        shell: bash
+        run: |
+          echo "VERSION=$( (git describe --tags --exact-match HEAD || git rev-parse --short HEAD) | sed 's/\(.*\)-\(.*\)/\1.\2/g' )" >> "$GITHUB_ENV"
+
+      - name: Create artifact
+        shell: bash
+        run: |
+          mkdir out/
+          git archive --prefix="addons/limbo_console/" --output="out/limbo_console_${VERSION}.zip" ${{ github.ref }}
 
       - name: Generate changelog
         id: changelog
         uses: metcalfc/changelog-generator@v4.3.1
         with:
           myToken: ${{ secrets.GITHUB_TOKEN }}
+          base-ref: ${{ inputs.base-ref }}
 
       - name: Draft Release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref }}
-          name: ${{ github.ref }}
+          name: ${{ env.VERSION }}
           body: ${{ steps.changelog.outputs.changelog }}
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: true
+          artifacts: "out/limbo_console_${{ env.VERSION }}.zip"
