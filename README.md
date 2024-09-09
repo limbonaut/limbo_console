@@ -39,14 +39,14 @@ LimboConsole.register_command(multiply, "multiply", "multiply two numbers")
 
 Several basic types are supported for command arguments, such as `bool`, `int`, `float`, `String` and `Vector{2,3,4}` types. To enter a `Vector2` argument, enclose its components in parentheses, like this: `(1 2)`. String arguments can also be enclosed in double quotation marks `"`.
 
-Autocompletion can be implemented for any given command argument:
+Autocompletion works for both command names and history. It can also be implemented for specific command arguments, as shown in the following example: 
 ```gdscript
 LimboConsole.register_command(teleport, "teleport", "teleport to site on this level")
 LimboConsole.add_argument_autocomplete_source("teleport", 1,
 		func(): return ["entrance", "caves", "boss"]
 	)
 ```
-For a dynamically built list of autocomplete values the code could look like this:
+For a dynamically generated list of autocomplete values, the code could look like this:
 ```gdscript
 LimboConsole.add_argument_autocomplete_source("teleport", 1,
 		func(): return get_tree().get_nodes_in_group("teleportation_site").map(
