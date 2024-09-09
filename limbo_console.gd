@@ -825,6 +825,8 @@ func _fill_from_history() -> void:
 		_fill_command_entry("")
 	else:
 		_fill_command_entry(_history[_history.size() - _hist_idx - 1])
+	_clear_autocomplete()
+	_update_autocomplete()
 
 
 func _push_history(p_line: String) -> void:
