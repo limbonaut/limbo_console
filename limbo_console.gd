@@ -245,7 +245,8 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 	if p_argument < 1 or p_argument > 5:
 		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
 		return
-	var key := [p_command, p_argument]
+	var dealiased_name: String = _command_aliases.get(p_command, p_command)
+	var key := [dealiased_name, p_argument]
 	_argument_autocomplete_sources[key] = p_source
 
 
