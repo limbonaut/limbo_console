@@ -569,19 +569,22 @@ func _update_autocomplete() -> void:
 	if _entry.text.right(1) == ' ' or argv.size() == 0:
 		argv.append("")
 	var command_name: String = argv[0]
+	var dealiased_name: String = _command_aliases.get(command_name, command_name)
 	var last_arg: int = argv.size() - 1
 
 	if _autocomplete_matches.is_empty() and not _entry.text.is_empty():
 		if last_arg == 0:
 			# Command name
 			var line: String = _entry.text
-			for k in _commands:
+			var command_names: PackedStringArray = _commands.keys() + _command_aliases.keys()
+			command_names.sort()
+			for k in command_names:
 				if k.begins_with(line):
 					_autocomplete_matches.append(k)
 			_autocomplete_matches.sort()
 		else:
 			# Arguments
-			var key := [command_name, last_arg]
+			var key := [dealiased_name, last_arg]
 			if _argument_autocomplete_sources.has(key) and not argv[last_arg].is_empty():
 				var argument_values = _argument_autocomplete_sources[key].call()
 				if typeof(argument_values) < TYPE_ARRAY:
