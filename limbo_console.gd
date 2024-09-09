@@ -218,6 +218,12 @@ func has_command(p_name: String) -> bool:
 	return _commands.has(p_name) or _command_aliases.has(p_name)
 
 
+func get_command_names(p_include_aliases: bool = false) -> PackedStringArray:
+	var names: PackedStringArray = _commands.keys() + _command_aliases.keys()
+	names.sort()
+	return names
+
+
 ## Adds an alias for an existing command.
 func add_alias(p_alias: String, p_existing: String) -> void:
 	if has_command(p_alias):
@@ -270,7 +276,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 
 	if not has_command(command_name):
 		error("Unknown command: " + command_name)
-		_suggest_similar(argv, 0)
+		_suggest_similar_command(argv)
 		_silent = false
 		return
 
@@ -279,7 +285,10 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	var cmd: Callable = _commands.get(dealiased_name)
 	var valid: bool = _parse_argv(argv, cmd, command_args)
 	if valid:
-		cmd.callv(command_args)
+		var err = cmd.callv(command_args)
+		var failed: bool = typeof(err) == TYPE_INT and err > 0
+		if failed:
+			_suggest_argument_corrections(argv)
 	else:
 		_usage(command_name)
 	if _options.sparse_mode:
@@ -398,8 +407,6 @@ func _init_aliases() -> void:
 			push_error("LimboConsole: Config error: Alias target not found: ", target)
 		else:
 			add_alias(alias, target)
-
-	add_argument_autocomplete_source("help", 1, func(): return _commands.keys())
 
 
 func _load_history() -> void:
@@ -581,9 +588,7 @@ func _update_autocomplete() -> void:
 		if last_arg == 0:
 			# Command name
 			var line: String = _entry.text
-			var command_names: PackedStringArray = _commands.keys() + _command_aliases.keys()
-			command_names.sort()
-			for k in command_names:
+			for k in get_command_names(true):
 				if k.begins_with(line):
 					_autocomplete_matches.append(k)
 			_autocomplete_matches.sort()
@@ -620,34 +625,69 @@ func _clear_autocomplete() -> void:
 	_entry.autocomplete_hint = ""
 
 
-## Suggests a similar command to the user and prepares the auto-correction on TAB.
-func _suggest_similar(p_argv: PackedStringArray, p_command_index: int = 0) -> void:
+## Suggests corrections to user input based on similar command names.
+func _suggest_similar_command(p_argv: PackedStringArray) -> void:
 	if _silent:
 		return
-	var fuzzy_hit: String = _fuzzy_match_command(p_argv[p_command_index], 2)
+	var fuzzy_hit: String = _fuzzy_match_string(p_argv[0], 2, get_command_names(true))
 	if fuzzy_hit:
-		info("Did you mean %s? %s" % [format_name(fuzzy_hit), format_tip("([b]TAB[/b] to fill)")])
+		info(format_tip("Did you mean %s? ([b]TAB[/b] to fill)" % [format_name(fuzzy_hit)]))
 		var argv := p_argv.duplicate()
-		argv[p_command_index] = fuzzy_hit
+		argv[0] = fuzzy_hit
 		var suggest_command: String = " ".join(argv)
 		suggest_command = suggest_command.strip_edges()
 		_autocomplete_matches.append(suggest_command)
 
 
-## Finds a command with a similar name.
-func _fuzzy_match_command(p_name: String, p_max_edit_distance: int) -> String:
-	var command_names: PackedStringArray = _commands.keys()
-	command_names.append_array(_command_aliases.keys())
-	command_names.sort()
+## Suggests corrections to user input based on similar autocomplete argument values.
+func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
+	if _silent:
+		return
+	var argv: PackedStringArray
+	var command_name: String = p_argv[0]
+	var dealiased_name: String = _command_aliases.get(command_name, command_name)
+	var corrected := false
+
+	argv.resize(p_argv.size())
+	argv[0] = command_name
+	for i in range(1, p_argv.size()):
+		var accepted_values = []
+		var key := [dealiased_name, i]
+		var source: Callable = _argument_autocomplete_sources.get(key, Callable())
+		if source.is_valid():
+			accepted_values = source.call()
+		if accepted_values == null or typeof(accepted_values) < TYPE_ARRAY:
+			continue
+		var fuzzy_hit: String = _fuzzy_match_string(p_argv[i], 2, accepted_values)
+		if not fuzzy_hit.is_empty():
+			argv[i] = fuzzy_hit
+			corrected = true
+		else:
+			argv[i] = p_argv[i]
+	if corrected:
+		info(format_tip("Did you mean \"%s %s\"? ([b]TAB[/b] to fill)" % [format_name(command_name), " ".join(argv.slice(1))]))
+		var suggest_command: String = " ".join(argv)
+		suggest_command = suggest_command.strip_edges()
+		_autocomplete_matches.append(suggest_command)
+
+
+## Finds the most similar string in an array.
+func _fuzzy_match_string(p_string: String, p_max_edit_distance: int, p_array) -> String:
+	if typeof(p_array) < TYPE_ARRAY:
+		push_error("LimboConsole: Internal error: p_array is not an array")
+		return ""
+	if p_array.size() == 0:
+		return ""
 	var best_distance: int = 9223372036854775807
-	var best_name: String = ""
-	for n: String in command_names:
-		var dist: float = _calculate_osa_distance(p_name, n)
+	var best_match: String = ""
+	for i in p_array.size():
+		var elem := str(p_array[i])
+		var dist: float = _calculate_osa_distance(p_string, elem)
 		if dist < best_distance:
 			best_distance = dist
-			best_name = n
-	# debug("Best %s: %d" % [best_name, best_distance])
-	return best_name if best_distance <= p_max_edit_distance else ""
+			best_match = elem
+	# debug("Best %s: %d" % [best_match, best_distance])
+	return best_match if best_distance <= p_max_edit_distance else ""
 
 
 ## Calculates optimal string alignment distance [br]
@@ -722,11 +762,10 @@ func _validate_callable(p_callable: Callable) -> bool:
 
 
 ## Prints the help text for the given command.
-func _usage(p_command_name: String) -> void:
+func _usage(p_command_name: String) -> Error:
 	if not has_command(p_command_name):
-		error("Command not found: " + format_name(p_command_name))
-		_suggest_similar(_parse_command_line(_history[_history.size() - 1]), 1)
-		return
+		error("Command not found: " + p_command_name)
+		return ERR_INVALID_PARAMETER
 
 	var dealiased_name: String = _command_aliases.get(p_command_name, p_command_name)
 	if dealiased_name != p_command_name:
@@ -737,7 +776,7 @@ func _usage(p_command_name: String) -> void:
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + callable.get_method())
 		_print_line("Usage: ???")
-		return
+		return ERR_METHOD_NOT_FOUND
 
 	var usage_line: String = "Usage: %s" % [dealiased_name]
 	var arg_lines: String = ""
@@ -772,6 +811,7 @@ func _usage(p_command_name: String) -> void:
 	if not arg_lines.is_empty():
 		_print_line("Arguments:")
 		_print_line(arg_lines)
+	return OK
 
 
 func _fill_command_entry(p_line: String) -> void:
@@ -822,9 +862,7 @@ func _cmd_aliases() -> void:
 
 func _cmd_commands() -> void:
 	info("Available commands:")
-	var command_names: Array = _commands.keys()
-	command_names.sort()
-	for name in command_names:
+	for name in get_command_names(false):
 		var desc: String = _command_descriptions.get(name, "")
 		info(format_name(name) if desc.is_empty() else "%s -- %s" % [format_name(name), desc])
 
@@ -854,12 +892,13 @@ func _cmd_fullscreen() -> void:
 		info("Window switched to windowed mode.")
 
 
-func _cmd_help(p_command_name: String = "") -> void:
+func _cmd_help(p_command_name: String = "") -> Error:
 	if p_command_name.is_empty():
 		_print_line(format_tip("Type %s to list all available commands." % [format_name("commands")]))
 		_print_line(format_tip("Type %s to get more info about the command." % [format_name("help command")]))
+		return OK
 	else:
-		_usage(p_command_name)
+		return _usage(p_command_name)
 
 
 func _cmd_quit() -> void:
