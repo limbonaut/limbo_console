@@ -67,6 +67,7 @@ func _init() -> void:
 		_greet()
 
 	_init_commands()
+	_init_aliases.call_deferred()
 
 	if _options.disable_in_release_build:
 		enabled = OS.is_debug_build()
@@ -381,6 +382,10 @@ func _init_commands() -> void:
 	register_command(_cmd_quit, "quit", "exit the application")
 	register_command(_cmd_vsync, "vsync", "adjust V-Sync")
 
+	add_argument_autocomplete_source("help", 1, get_command_names.bind(true))
+
+
+func _init_aliases() -> void:
 	for alias in _options.aliases:
 		var target = _options.aliases[alias]
 		if not alias is String:
