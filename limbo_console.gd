@@ -142,36 +142,36 @@ func clear_console() -> void:
 
 ## Prints an info message to the console and the output.
 func info(p_line: String) -> void:
-	_print_line(p_line)
+	_print_line(p_line, _options.print_to_godot_console)
 
 
 ## Prints an error message to the console and the output.
 func error(p_line: String) -> void:
-	_print_line("[color=%s]ERROR:[/color] %s" % [_output_error_color.to_html(), p_line])
+	_print_line("[color=%s]ERROR:[/color] %s" % [_output_error_color.to_html(), p_line], _options.print_to_godot_console)
 
 
 ## Prints a warning message to the console and the output.
 func warn(p_line: String) -> void:
-	_print_line("[color=%s]WARNING:[/color] %s" % [_output_warning_color.to_html(), p_line])
+	_print_line("[color=%s]WARNING:[/color] %s" % [_output_warning_color.to_html(), p_line], _options.print_to_godot_console)
 
 
 ## Prints a debug message to the console and the output.
 func debug(p_line: String) -> void:
-	_print_line("[color=%s]DEBUG: %s[/color]" % [_output_debug_color.to_html(), p_line])
+	_print_line("[color=%s]DEBUG: %s[/color]" % [_output_debug_color.to_html(), p_line], _options.print_to_godot_console)
 
 
 ## Prints a line using boxed ASCII art style.
 func print_boxed(p_line: String) -> void:
 	for line in AsciiArt.str_to_boxed_art(p_line):
-		_print_line(line)
+		_print_line(line, _options.print_to_godot_console)
 
 
-func _print_line(p_line: String) -> void:
+func _print_line(p_line: String, p_godot_console: bool = false) -> void:
 	if _silent:
 		return
 	var line: String = p_line + "\n"
 	_output.text += line
-	if _options.print_to_godot_console:
+	if p_godot_console:
 		print_rich(line.strip_edges())
 
 
@@ -387,9 +387,10 @@ func _init_commands() -> void:
 	register_command(clear_console, "clear", "clear console screen")
 	register_command(_cmd_commands, "commands", "list all commands")
 	register_command(info, "echo", "display a line of text")
-	register_command(_cmd_help, "help", "show command info")
 	register_command(_cmd_fps_max, "fps_max", "limit framerate")
 	register_command(_cmd_fullscreen, "fullscreen", "toggle fullscreen mode")
+	register_command(_cmd_help, "help", "show command info")
+	register_command(_cmd_log, "log", "show recent log entries")
 	register_command(_cmd_quit, "quit", "exit the application")
 	register_command(_cmd_vsync, "vsync", "adjust V-Sync")
 
@@ -737,6 +738,18 @@ func _calculate_osa_distance(s1: String, s2: String) -> int:
 # *** MISC
 
 
+func _bbcode_escape(p_text: String) -> String:
+	var ret: String
+	for c in p_text:
+		if c == '[':
+			ret += "[lb]"
+		elif c == ']':
+			ret += "[rb]"
+		else:
+			ret += c
+	return ret
+
+
 func _get_method_info(p_callable: Callable) -> Dictionary:
 	var method_info: Dictionary
 	var method_list: Array[Dictionary]
@@ -778,7 +791,6 @@ func _usage(p_command_name: String) -> Error:
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + callable.get_method())
 		_print_line("Usage: ???")
-		return ERR_METHOD_NOT_FOUND
 
 	var usage_line: String = "Usage: %s" % [dealiased_name]
 	var arg_lines: String = ""
@@ -903,6 +915,22 @@ func _cmd_help(p_command_name: String = "") -> Error:
 		return OK
 	else:
 		return _usage(p_command_name)
+
+
+func _cmd_log(p_num_lines: int = 10) -> Error:
+	var fn: String = ProjectSettings.get_setting("debug/file_logging/log_path")
+	var file = FileAccess.open(fn, FileAccess.READ)
+	if not file:
+		error("Can't open file: " + fn)
+		return ERR_CANT_OPEN
+	var contents := file.get_as_text()
+	var lines := contents.split('\n')
+	if lines.size() and lines[lines.size() - 1].strip_edges() == "":
+		lines.remove_at(lines.size() - 1)
+	lines = lines.slice(maxi(lines.size() - p_num_lines, 0))
+	for l in lines:
+		_print_line(_bbcode_escape(l), false)
+	return OK
 
 
 func _cmd_quit() -> void:
