@@ -219,7 +219,9 @@ func has_command(p_name: String) -> bool:
 
 
 func get_command_names(p_include_aliases: bool = false) -> PackedStringArray:
-	var names: PackedStringArray = _commands.keys() + _command_aliases.keys()
+	var names: PackedStringArray = _commands.keys()
+	if p_include_aliases:
+		names.append_array(_command_aliases.keys())
 	names.sort()
 	return names
 
