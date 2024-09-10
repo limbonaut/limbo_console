@@ -9,7 +9,7 @@ const CONFIG_PATH := "res://addons/limbo_console.cfg"
 }
 @export var custom_theme: String = "res://addons/limbo_console_theme.tres"
 @export var disable_in_release_build: bool = false
-@export var print_to_godot_console: bool = true
+@export var print_to_godot_console: bool = false
 
 ## Print empty line after each command execution.
 @export var sparse_mode: bool = false
