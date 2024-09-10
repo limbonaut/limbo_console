@@ -740,15 +740,11 @@ func _calculate_osa_distance(s1: String, s2: String) -> int:
 
 
 func _bbcode_escape(p_text: String) -> String:
-	var ret: String
-	for c in p_text:
-		if c == '[':
-			ret += "[lb]"
-		elif c == ']':
-			ret += "[rb]"
-		else:
-			ret += c
-	return ret
+	return p_text \
+		.replace("[", "~LB~") \
+		.replace("]", "~RB~") \
+		.replace("~LB~", "[lb]") \
+		.replace("~RB~", "[rb]")
 
 
 func _get_method_info(p_callable: Callable) -> Dictionary:
