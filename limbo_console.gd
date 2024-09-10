@@ -10,6 +10,7 @@ const AsciiArt := preload("res://addons/limbo_console/ascii_art.gd")
 const CommandEntry := preload("res://addons/limbo_console/command_entry.gd")
 const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
+const Util := preload("res://addons/limbo_console/util.gd")
 
 ## If false, prevents console from being shown. Commands can still be executed from code.
 var enabled: bool = true:
@@ -88,10 +89,10 @@ func _input(p_event: InputEvent) -> void:
 		var handled := true
 		if p_event.keycode == KEY_UP:
 			_hist_idx += 1
-			_fill_from_history()
+			_fill_entry_from_history()
 		elif p_event.keycode == KEY_DOWN:
 			_hist_idx -= 1
-			_fill_from_history()
+			_fill_entry_from_history()
 		elif p_event.keycode == KEY_TAB:
 			_autocomplete()
 		elif p_event.keycode == KEY_PAGEUP:
@@ -172,7 +173,7 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 		return
 	_output.text += p_line + "\n"
 	if p_stdout:
-		print(_bbcode_strip(p_line))
+		print(Util.bbcode_strip(p_line))
 
 
 ## Registers a new command for the specified callable. [br]
@@ -472,7 +473,7 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array) -> bool:
 	var passed := true
 
-	var method_info: Dictionary = _get_method_info(p_callable)
+	var method_info: Dictionary = Util.get_method_info(p_callable)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + p_callable.get_method())
 		return false
@@ -497,7 +498,7 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 		if expected_type == TYPE_STRING:
 			r_args[i - 1] = a.trim_prefix('"').trim_suffix('"')
 		elif a.begins_with('(') and a.ends_with(')'):
-			var vec = _str_to_vector(a)
+			var vec = _parse_vector_arg(a)
 			if vec != null:
 				r_args[i - 1] = vec
 			else:
@@ -531,7 +532,7 @@ func _are_compatible_types(p_expected_type: int, p_parsed_type: int) -> bool:
 		p_expected_type in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT] and p_parsed_type in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT]
 
 
-func _str_to_vector(p_text):
+func _parse_vector_arg(p_text):
 	assert(p_text.begins_with('(') and p_text.ends_with(')'), "Vector string presentation must begin and end with round brackets")
 	var comp: Array
 	var token: String
@@ -572,7 +573,7 @@ func _str_to_vector(p_text):
 func _autocomplete() -> void:
 	if not _autocomplete_matches.is_empty():
 		var match: String = _autocomplete_matches[0]
-		_fill_command_entry(match)
+		_fill_entry(match)
 		_autocomplete_matches.remove_at(0)
 		_autocomplete_matches.push_back(match)
 		_update_autocomplete()
@@ -632,7 +633,7 @@ func _clear_autocomplete() -> void:
 func _suggest_similar_command(p_argv: PackedStringArray) -> void:
 	if _silent:
 		return
-	var fuzzy_hit: String = _fuzzy_match_string(p_argv[0], 2, get_command_names(true))
+	var fuzzy_hit: String = Util.fuzzy_match_string(p_argv[0], 2, get_command_names(true))
 	if fuzzy_hit:
 		info(format_tip("Did you mean %s? ([b]TAB[/b] to fill)" % [format_name(fuzzy_hit)]))
 		var argv := p_argv.duplicate()
@@ -661,7 +662,7 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 			accepted_values = source.call()
 		if accepted_values == null or typeof(accepted_values) < TYPE_ARRAY:
 			continue
-		var fuzzy_hit: String = _fuzzy_match_string(p_argv[i], 2, accepted_values)
+		var fuzzy_hit: String = Util.fuzzy_match_string(p_argv[i], 2, accepted_values)
 		if not fuzzy_hit.is_empty():
 			argv[i] = fuzzy_hit
 			corrected = true
@@ -674,105 +675,12 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 		_autocomplete_matches.append(suggest_command)
 
 
-## Finds the most similar string in an array.
-func _fuzzy_match_string(p_string: String, p_max_edit_distance: int, p_array) -> String:
-	if typeof(p_array) < TYPE_ARRAY:
-		push_error("LimboConsole: Internal error: p_array is not an array")
-		return ""
-	if p_array.size() == 0:
-		return ""
-	var best_distance: int = 9223372036854775807
-	var best_match: String = ""
-	for i in p_array.size():
-		var elem := str(p_array[i])
-		var dist: float = _calculate_osa_distance(p_string, elem)
-		if dist < best_distance:
-			best_distance = dist
-			best_match = elem
-	# debug("Best %s: %d" % [best_match, best_distance])
-	return best_match if best_distance <= p_max_edit_distance else ""
-
-
-## Calculates optimal string alignment distance [br]
-## See: https://en.wikipedia.org/wiki/Levenshtein_distance
-func _calculate_osa_distance(s1: String, s2: String) -> int:
-	var s1_len: int = s1.length()
-	var s2_len: int = s2.length()
-
-	# Iterative approach with 3 matrix rows.
-	# Most of the work is done on row1 and row2 - row0 is only needed to calculate transposition cost.
-	var row0: PackedInt32Array # previous-previous
-	var row1: PackedInt32Array # previous
-	var row2: PackedInt32Array # current aka the one we need to calculate
-	row0.resize(s2_len + 1)
-	row1.resize(s2_len + 1)
-	row2.resize(s2_len + 1)
-
-	# edit distance is the number of characters to insert to get from empty string to s2
-	for i in range(s2_len + 1):
-		row1[i] = i
-
-	for i in range(s1_len):
-		# edit distance is the number of characters to delete from s1 to match empty s2
-		row2[0] = i + 1
-
-		for j in range(s2_len):
-			var deletion_cost: int = row1[j + 1] + 1
-			var insertion_cost: int = row2[j] + 1
-			var substitution_cost: int = row1[j] if s1[i] == s2[j] else row1[j] + 1
-
-			row2[j + 1] = min(deletion_cost, insertion_cost, substitution_cost)
-
-			if i > 1 and j > 1 and s1[i - 1] == s2[j] and s1[i - 1] == s2[j]:
-				var transposition_cost: int = row0[j - 1] + 1
-				row2[j + 1] = mini(transposition_cost, row2[j + 1])
-
-		# Swap rows.
-		var tmp: PackedInt32Array = row0
-		row0 = row1
-		row1 = row2
-		row2 = tmp
-	return row1[s2_len]
-
-
 # *** MISC
-
-
-func _bbcode_escape(p_text: String) -> String:
-	return p_text \
-		.replace("[", "~LB~") \
-		.replace("]", "~RB~") \
-		.replace("~LB~", "[lb]") \
-		.replace("~RB~", "[rb]")
-
-
-func _bbcode_strip(p_text: String) -> String:
-	var stripped := ""
-	var in_brackets: bool = false
-	for c: String in p_text:
-		if c == '[':
-			in_brackets = true
-		elif c == ']':
-			in_brackets = false
-		elif not in_brackets:
-			stripped += c
-	return stripped
-
-
-func _get_method_info(p_callable: Callable) -> Dictionary:
-	var method_info: Dictionary
-	var method_list: Array[Dictionary]
-	method_list = p_callable.get_object().get_method_list()
-	for m in method_list:
-		if m.name == p_callable.get_method():
-			method_info = m
-			break
-	return method_info
 
 
 ## Returns true if the callable can be registered as a command.
 func _validate_callable(p_callable: Callable) -> bool:
-	var method_info: Dictionary = _get_method_info(p_callable)
+	var method_info: Dictionary = Util.get_method_info(p_callable)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + p_callable.get_method())
 		return false
@@ -796,7 +704,7 @@ func _usage(p_command_name: String) -> Error:
 		print_line("Alias of " + format_name(dealiased_name) + ".")
 
 	var callable: Callable = _commands[dealiased_name]
-	var method_info: Dictionary = _get_method_info(callable)
+	var method_info: Dictionary = Util.get_method_info(callable)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + callable.get_method())
 		print_line("Usage: ???")
@@ -837,17 +745,17 @@ func _usage(p_command_name: String) -> Error:
 	return OK
 
 
-func _fill_command_entry(p_line: String) -> void:
+func _fill_entry(p_line: String) -> void:
 	_entry.text = p_line
 	_entry.set_caret_column(p_line.length())
 
 
-func _fill_from_history() -> void:
+func _fill_entry_from_history() -> void:
 	_hist_idx = wrapi(_hist_idx, -1, _history.size())
 	if _hist_idx < 0:
-		_fill_command_entry("")
+		_fill_entry("")
 	else:
-		_fill_command_entry(_history[_history.size() - _hist_idx - 1])
+		_fill_entry(_history[_history.size() - _hist_idx - 1])
 	_clear_autocomplete()
 	_update_autocomplete()
 
@@ -862,7 +770,7 @@ func _push_history(p_line: String) -> void:
 
 func _on_entry_text_submitted(p_command: String) -> void:
 	_clear_autocomplete()
-	_fill_command_entry("")
+	_fill_entry("")
 	execute_command(p_command)
 	_update_autocomplete()
 
@@ -938,7 +846,7 @@ func _cmd_log(p_num_lines: int = 10) -> Error:
 		lines.remove_at(lines.size() - 1)
 	lines = lines.slice(maxi(lines.size() - p_num_lines, 0))
 	for line in lines:
-		print_line(_bbcode_escape(line), false)
+		print_line(Util.bbcode_escape(line), false)
 	return OK
 
 
