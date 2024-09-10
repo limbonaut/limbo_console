@@ -142,36 +142,37 @@ func clear_console() -> void:
 
 ## Prints an info message to the console and the output.
 func info(p_line: String) -> void:
-	_print_line(p_line, _options.print_to_godot_console)
+	print_line(p_line)
 
 
 ## Prints an error message to the console and the output.
 func error(p_line: String) -> void:
-	_print_line("[color=%s]ERROR:[/color] %s" % [_output_error_color.to_html(), p_line], _options.print_to_godot_console)
+	print_line("[color=%s]ERROR:[/color] %s" % [_output_error_color.to_html(), p_line])
 
 
 ## Prints a warning message to the console and the output.
 func warn(p_line: String) -> void:
-	_print_line("[color=%s]WARNING:[/color] %s" % [_output_warning_color.to_html(), p_line], _options.print_to_godot_console)
+	print_line("[color=%s]WARNING:[/color] %s" % [_output_warning_color.to_html(), p_line])
 
 
 ## Prints a debug message to the console and the output.
 func debug(p_line: String) -> void:
-	_print_line("[color=%s]DEBUG: %s[/color]" % [_output_debug_color.to_html(), p_line], _options.print_to_godot_console)
+	print_line("[color=%s]DEBUG: %s[/color]" % [_output_debug_color.to_html(), p_line])
 
 
 ## Prints a line using boxed ASCII art style.
 func print_boxed(p_line: String) -> void:
 	for line in AsciiArt.str_to_boxed_art(p_line):
-		_print_line(line, _options.print_to_godot_console)
+		print_line(line)
 
 
-func _print_line(p_line: String, p_godot_console: bool = false) -> void:
+## Prints a line to the console, and optionally to standard output.
+func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> void:
 	if _silent:
 		return
 	var line: String = p_line + "\n"
 	_output.text += line
-	if p_godot_console:
+	if p_stdout:
 		print_rich(line.strip_edges())
 
 
@@ -294,7 +295,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	else:
 		_usage(command_name)
 	if _options.sparse_mode:
-		_print_line("")
+		print_line("")
 	_silent = false
 
 
@@ -784,13 +785,13 @@ func _usage(p_command_name: String) -> Error:
 
 	var dealiased_name: String = _command_aliases.get(p_command_name, p_command_name)
 	if dealiased_name != p_command_name:
-		_print_line("Alias of " + format_name(dealiased_name) + ".")
+		print_line("Alias of " + format_name(dealiased_name) + ".")
 
 	var callable: Callable = _commands[dealiased_name]
 	var method_info: Dictionary = _get_method_info(callable)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + callable.get_method())
-		_print_line("Usage: ???")
+		print_line("Usage: ???")
 
 	var usage_line: String = "Usage: %s" % [dealiased_name]
 	var arg_lines: String = ""
@@ -812,7 +813,7 @@ func _usage(p_command_name: String) -> Error:
 			def_spec = " = %s" % [def_value]
 		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
 
-	_print_line(usage_line)
+	print_line(usage_line)
 
 	var desc_line: String = ""
 	desc_line = _command_descriptions.get(dealiased_name, "")
@@ -820,11 +821,11 @@ func _usage(p_command_name: String) -> Error:
 		desc_line[0] = desc_line[0].capitalize()
 		if desc_line.right(1) != ".":
 			desc_line += "."
-		_print_line(desc_line)
+		print_line(desc_line)
 
 	if not arg_lines.is_empty():
-		_print_line("Arguments:")
-		_print_line(arg_lines)
+		print_line("Arguments:")
+		print_line(arg_lines)
 	return OK
 
 
@@ -910,8 +911,8 @@ func _cmd_fullscreen() -> void:
 
 func _cmd_help(p_command_name: String = "") -> Error:
 	if p_command_name.is_empty():
-		_print_line(format_tip("Type %s to list all available commands." % [format_name("commands")]))
-		_print_line(format_tip("Type %s to get more info about the command." % [format_name("help command")]))
+		print_line(format_tip("Type %s to list all available commands." % [format_name("commands")]))
+		print_line(format_tip("Type %s to get more info about the command." % [format_name("help command")]))
 		return OK
 	else:
 		return _usage(p_command_name)
@@ -928,8 +929,8 @@ func _cmd_log(p_num_lines: int = 10) -> Error:
 	if lines.size() and lines[lines.size() - 1].strip_edges() == "":
 		lines.remove_at(lines.size() - 1)
 	lines = lines.slice(maxi(lines.size() - p_num_lines, 0))
-	for l in lines:
-		_print_line(_bbcode_escape(l), false)
+	for line in lines:
+		print_line(_bbcode_escape(line), false)
 	return OK
 
 
