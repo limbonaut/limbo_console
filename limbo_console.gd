@@ -170,10 +170,9 @@ func print_boxed(p_line: String) -> void:
 func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> void:
 	if _silent:
 		return
-	var line: String = p_line + "\n"
-	_output.text += line
+	_output.text += p_line + "\n"
 	if p_stdout:
-		print_rich(line.strip_edges())
+		print(_bbcode_strip(p_line))
 
 
 ## Registers a new command for the specified callable. [br]
@@ -745,6 +744,19 @@ func _bbcode_escape(p_text: String) -> String:
 		.replace("]", "~RB~") \
 		.replace("~LB~", "[lb]") \
 		.replace("~RB~", "[rb]")
+
+
+func _bbcode_strip(p_text: String) -> String:
+	var stripped := ""
+	var in_brackets: bool = false
+	for c: String in p_text:
+		if c == '[':
+			in_brackets = true
+		elif c == ']':
+			in_brackets = false
+		elif not in_brackets:
+			stripped += c
+	return stripped
 
 
 func _get_method_info(p_callable: Callable) -> Dictionary:
