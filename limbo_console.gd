@@ -7,6 +7,7 @@ const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
 const HISTORY_FILE := "user://limbo_console_history.log"
 
 const AsciiArt := preload("res://addons/limbo_console/ascii_art.gd")
+const BuiltinCommands := preload("res://addons/limbo_console/builtin_commands.gd")
 const CommandEntry := preload("res://addons/limbo_console/command_entry.gd")
 const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
@@ -61,17 +62,18 @@ func _init() -> void:
 	if _options.persist_history:
 		_load_history()
 
+	if _options.disable_in_release_build:
+		enabled = OS.is_debug_build()
+
 	_entry.text_submitted.connect(_on_entry_text_submitted)
 	_entry.text_changed.connect(_on_entry_text_changed)
 
+
+func _ready() -> void:
+	BuiltinCommands.register_commands()
 	if _options.greet_user:
 		_greet()
-
-	_init_commands()
-	_init_aliases.call_deferred()
-
-	if _options.disable_in_release_build:
-		enabled = OS.is_debug_build()
+	_add_aliases_from_config.call_deferred()
 
 
 func _exit_tree() -> void:
@@ -184,7 +186,7 @@ func register_command(p_func: Callable, p_name: String = "", p_desc: String = ""
 		return
 	var name: String = p_name
 	if name.is_empty():
-		name = p_func.get_method().trim_prefix("_cmd").trim_prefix("_")
+		name = p_func.get_method().trim_prefix("_").trim_prefix("cmd_")
 	if _commands.has(name):
 		push_error("LimboConsole: Command already registered: " + p_name)
 		return
@@ -227,6 +229,10 @@ func get_command_names(p_include_aliases: bool = false) -> PackedStringArray:
 	return names
 
 
+func get_command_description(p_name: String) -> String:
+	return _command_descriptions.get(p_name, "")
+
+
 ## Adds an alias for an existing command.
 func add_alias(p_alias: String, p_existing: String) -> void:
 	if has_command(p_alias):
@@ -241,6 +247,14 @@ func add_alias(p_alias: String, p_existing: String) -> void:
 ## Removes an alias by name.
 func remove_alias(p_name: String) -> void:
 	_command_aliases.erase(p_name)
+
+
+func get_aliases() -> PackedStringArray:
+	return PackedStringArray(_command_aliases.keys())
+
+
+func get_alias_target(p_alias: String) -> String:
+	return _command_aliases.get(p_alias, "")
 
 
 ## Registers a callable that should return an array of possible values for the given argument and command.
@@ -293,7 +307,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		if failed:
 			_suggest_argument_corrections(argv)
 	else:
-		_usage(command_name)
+		usage(command_name)
 	if _options.sparse_mode:
 		print_line("")
 	_silent = false
@@ -307,6 +321,58 @@ func format_tip(p_text: String) -> String:
 ## Formats the command name for display.
 func format_name(p_name: String) -> String:
 	return "[color=" + _output_command_mention_color.to_html() + "]" + p_name + "[/color]"
+
+
+## Prints the help text for the given command.
+func usage(p_command_name: String) -> Error:
+	if not has_command(p_command_name):
+		error("Command not found: " + p_command_name)
+		return ERR_INVALID_PARAMETER
+
+	var dealiased_name: String = _command_aliases.get(p_command_name, p_command_name)
+	if dealiased_name != p_command_name:
+		print_line("Alias of " + format_name(dealiased_name) + ".")
+
+	var callable: Callable = _commands[dealiased_name]
+	var method_info: Dictionary = Util.get_method_info(callable)
+	if method_info.is_empty():
+		error("Couldn't find method info for: " + callable.get_method())
+		print_line("Usage: ???")
+
+	var usage_line: String = "Usage: %s" % [dealiased_name]
+	var arg_lines: String = ""
+	var required_args: int = method_info.args.size() - method_info.default_args.size()
+
+	for i in range(method_info.args.size()):
+		var arg_name: String = method_info.args[i].name.trim_prefix("p_")
+		var arg_type: int = method_info.args[i].type
+		if i < required_args:
+			usage_line += " " + arg_name
+		else:
+			usage_line += " [lb]" + arg_name + "[rb]"
+		var def_spec: String = ""
+		var num_required_args: int = method_info.args.size() - method_info.default_args.size()
+		if i >= num_required_args:
+			var def_value = method_info.default_args[i - num_required_args]
+			if typeof(def_value) == TYPE_STRING:
+				def_value = "\"" + def_value + "\""
+			def_spec = " = %s" % [def_value]
+		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
+
+	print_line(usage_line)
+
+	var desc_line: String = ""
+	desc_line = _command_descriptions.get(dealiased_name, "")
+	if not desc_line.is_empty():
+		desc_line[0] = desc_line[0].capitalize()
+		if desc_line.right(1) != ".":
+			desc_line += "."
+		print_line(desc_line)
+
+	if not arg_lines.is_empty():
+		print_line("Arguments:")
+		print_line(arg_lines)
+	return OK
 
 
 # *** PRIVATE
@@ -340,10 +406,8 @@ func _build_gui() -> void:
 func _init_theme() -> void:
 	var theme: Theme
 	if ResourceLoader.exists(_options.custom_theme, "Theme"):
-		print("Using custom theme")
 		theme = load(_options.custom_theme)
 	else:
-		print("Using default theme")
 		theme = load(THEME_DEFAULT)
 	_control.theme = theme
 
@@ -379,26 +443,11 @@ func _greet() -> void:
 			info("")
 		else:
 			info("[b]" + message + "[/b]")
-	_cmd_help()
+	BuiltinCommands.cmd_help()
 	info(format_tip("-----"))
 
 
-func _init_commands() -> void:
-	register_command(_cmd_aliases, "aliases", "list all aliases")
-	register_command(clear_console, "clear", "clear console screen")
-	register_command(_cmd_commands, "commands", "list all commands")
-	register_command(info, "echo", "display a line of text")
-	register_command(_cmd_fps_max, "fps_max", "limit framerate")
-	register_command(_cmd_fullscreen, "fullscreen", "toggle fullscreen mode")
-	register_command(_cmd_help, "help", "show command info")
-	register_command(_cmd_log, "log", "show recent log entries")
-	register_command(_cmd_quit, "quit", "exit the application")
-	register_command(_cmd_vsync, "vsync", "adjust V-Sync")
-
-	add_argument_autocomplete_source("help", 1, get_command_names.bind(true))
-
-
-func _init_aliases() -> void:
+func _add_aliases_from_config() -> void:
 	for alias in _options.aliases:
 		var target = _options.aliases[alias]
 		if not alias is String:
@@ -682,67 +731,15 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 func _validate_callable(p_callable: Callable) -> bool:
 	var method_info: Dictionary = Util.get_method_info(p_callable)
 	if method_info.is_empty():
-		error("Couldn't find method info for: " + p_callable.get_method())
+		push_error("LimboConsole: Couldn't find method info for: " + p_callable.get_method())
 		return false
 
 	var ret := true
 	for arg in method_info.args:
 		if not arg.type in [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING]:
-			error("Unsupported argument type: %s is %s" % [arg.name, type_string(arg.type)])
+			push_error("LimboConsole: Unsupported argument type: %s is %s" % [arg.name, type_string(arg.type)])
 			ret = false
 	return ret
-
-
-## Prints the help text for the given command.
-func _usage(p_command_name: String) -> Error:
-	if not has_command(p_command_name):
-		error("Command not found: " + p_command_name)
-		return ERR_INVALID_PARAMETER
-
-	var dealiased_name: String = _command_aliases.get(p_command_name, p_command_name)
-	if dealiased_name != p_command_name:
-		print_line("Alias of " + format_name(dealiased_name) + ".")
-
-	var callable: Callable = _commands[dealiased_name]
-	var method_info: Dictionary = Util.get_method_info(callable)
-	if method_info.is_empty():
-		error("Couldn't find method info for: " + callable.get_method())
-		print_line("Usage: ???")
-
-	var usage_line: String = "Usage: %s" % [dealiased_name]
-	var arg_lines: String = ""
-	var required_args: int = method_info.args.size() - method_info.default_args.size()
-
-	for i in range(method_info.args.size()):
-		var arg_name: String = method_info.args[i].name.trim_prefix("p_")
-		var arg_type: int = method_info.args[i].type
-		if i < required_args:
-			usage_line += " " + arg_name
-		else:
-			usage_line += " [lb]" + arg_name + "[rb]"
-		var def_spec: String = ""
-		var num_required_args: int = method_info.args.size() - method_info.default_args.size()
-		if i >= num_required_args:
-			var def_value = method_info.default_args[i - num_required_args]
-			if typeof(def_value) == TYPE_STRING:
-				def_value = "\"" + def_value + "\""
-			def_spec = " = %s" % [def_value]
-		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
-
-	print_line(usage_line)
-
-	var desc_line: String = ""
-	desc_line = _command_descriptions.get(dealiased_name, "")
-	if not desc_line.is_empty():
-		desc_line[0] = desc_line[0].capitalize()
-		if desc_line.right(1) != ".":
-			desc_line += "."
-		print_line(desc_line)
-
-	if not arg_lines.is_empty():
-		print_line("Arguments:")
-		print_line(arg_lines)
-	return OK
 
 
 func _fill_entry(p_line: String) -> void:
@@ -778,101 +775,3 @@ func _on_entry_text_submitted(p_command: String) -> void:
 func _on_entry_text_changed() -> void:
 	_clear_autocomplete()
 	_update_autocomplete()
-
-
-# *** BUILT-IN COMMANDS
-
-
-func _cmd_aliases() -> void:
-	info("Aliases:")
-	var aliases: Array = _command_aliases.keys()
-	aliases.sort()
-	for alias in aliases:
-		var dealiased_name = _command_aliases.get(alias, alias)
-		var desc: String = _command_descriptions.get(dealiased_name, "")
-		info(format_name(alias) if desc.is_empty() else "%s -- same as %s; %s" % [format_name(alias), format_name(dealiased_name), desc])
-
-
-func _cmd_commands() -> void:
-	info("Available commands:")
-	for name in get_command_names(false):
-		var desc: String = _command_descriptions.get(name, "")
-		info(format_name(name) if desc.is_empty() else "%s -- %s" % [format_name(name), desc])
-
-
-func _cmd_fps_max(p_limit: int = -1) -> void:
-	if p_limit < 0:
-		if Engine.max_fps == 0:
-			info("Framerate is unlimited.")
-		else:
-			info("Framerate is limited to %d FPS." % [Engine.max_fps])
-		return
-
-	Engine.max_fps = p_limit
-	if p_limit > 0:
-		info("Limiting framerate to %d FPS." % [p_limit])
-	elif p_limit == 0:
-		info("Removing framerate limits.")
-
-
-func _cmd_fullscreen() -> void:
-	if get_viewport().mode == Window.MODE_WINDOWED:
-		# get_viewport().mode = Window.MODE_EXCLUSIVE_FULLSCREEN
-		get_viewport().mode = Window.MODE_FULLSCREEN
-		info("Window switched to fullscreen mode.")
-	else:
-		get_viewport().mode = Window.MODE_WINDOWED
-		info("Window switched to windowed mode.")
-
-
-func _cmd_help(p_command_name: String = "") -> Error:
-	if p_command_name.is_empty():
-		print_line(format_tip("Type %s to list all available commands." % [format_name("commands")]))
-		print_line(format_tip("Type %s to get more info about the command." % [format_name("help command")]))
-		return OK
-	else:
-		return _usage(p_command_name)
-
-
-func _cmd_log(p_num_lines: int = 10) -> Error:
-	var fn: String = ProjectSettings.get_setting("debug/file_logging/log_path")
-	var file = FileAccess.open(fn, FileAccess.READ)
-	if not file:
-		error("Can't open file: " + fn)
-		return ERR_CANT_OPEN
-	var contents := file.get_as_text()
-	var lines := contents.split('\n')
-	if lines.size() and lines[lines.size() - 1].strip_edges() == "":
-		lines.remove_at(lines.size() - 1)
-	lines = lines.slice(maxi(lines.size() - p_num_lines, 0))
-	for line in lines:
-		print_line(Util.bbcode_escape(line), false)
-	return OK
-
-
-func _cmd_quit() -> void:
-	get_tree().quit()
-
-
-func _cmd_vsync(p_mode: int = -1) -> void:
-	if p_mode < 0:
-		var current: int = DisplayServer.window_get_vsync_mode()
-		if current == 0:
-			info("V-Sync: disabled.")
-		elif current == 1:
-			info('V-Sync: enabled.')
-		elif current == 2:
-			info('Current V-Sync mode: adaptive.')
-		info("Adjust V-Sync mode with an argument: 0 - disabled, 1 - enabled, 2 - adaptive.")
-	elif p_mode == DisplayServer.VSYNC_DISABLED:
-		info("Changing to disabled.")
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
-	elif p_mode == DisplayServer.VSYNC_ENABLED:
-		info("Changing to default V-Sync.")
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
-	elif p_mode == DisplayServer.VSYNC_ADAPTIVE:
-		info("Changing to adaptive V-Sync.")
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ADAPTIVE)
-	else:
-		error("Invalid mode.")
-		info("Acceptable modes: 0 - disabled, 1 - enabled, 2 - adaptive.")
