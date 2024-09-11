@@ -10,6 +10,7 @@ static func register_commands() -> void:
 	LimboConsole.register_command(LimboConsole.clear_console, "clear", "clear console screen")
 	LimboConsole.register_command(cmd_commands, "commands", "list all commands")
 	LimboConsole.register_command(LimboConsole.info, "echo", "display a line of text")
+	LimboConsole.register_command(cmd_eval, "eval", "evaluate an expression")
 	LimboConsole.register_command(cmd_fps_max, "fps_max", "limit framerate")
 	LimboConsole.register_command(cmd_fullscreen, "fullscreen", "toggle fullscreen mode")
 	LimboConsole.register_command(cmd_help, "help", "show command info")
@@ -40,6 +41,22 @@ static func cmd_commands() -> void:
 		var desc: String = LimboConsole.get_command_description(name)
 		name = LimboConsole.format_name(name)
 		LimboConsole.info(name if desc.is_empty() else "%s -- %s" % [name, desc])
+
+
+static func cmd_eval(p_expression: String) -> Error:
+	var exp := Expression.new()
+	var err: int = exp.parse(p_expression, LimboConsole.get_eval_input_names())
+	if err != OK:
+		LimboConsole.error(exp.get_error_text())
+		return err
+	var result = exp.execute(LimboConsole.get_eval_inputs())
+	if not exp.has_execute_failed():
+		if result != null:
+			LimboConsole.info(str(result))
+		return OK
+	else:
+		LimboConsole.error(exp.get_error_text())
+		return ERR_SCRIPT_FAILED
 
 
 static func cmd_fps_max(p_limit: int = -1) -> void:

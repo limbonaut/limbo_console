@@ -45,6 +45,7 @@ var _argument_autocomplete_sources: Dictionary # [command_name, arg_idx] => Call
 var _history: PackedStringArray
 var _hist_idx: int = -1
 var _autocomplete_matches: PackedStringArray
+var _eval_inputs: Dictionary
 var _silent: bool = false
 
 
@@ -373,6 +374,26 @@ func usage(p_command_name: String) -> Error:
 		print_line("Arguments:")
 		print_line(arg_lines)
 	return OK
+
+
+## Define an input variable for "eval" command.
+func add_eval_input(p_name: String, p_value) -> void:
+	_eval_inputs[p_name] = p_value
+
+
+## Remove specified input variable from "eval" command.
+func remove_eval_input(p_name) -> void:
+	_eval_inputs.erase(p_name)
+
+
+## List the defined input variables used in "eval" command.
+func get_eval_input_names() -> PackedStringArray:
+	return _eval_inputs.keys()
+
+
+## Get input variable values used in "eval" command, listed in the same order as names.
+func get_eval_inputs() -> Array:
+	return _eval_inputs.values()
 
 
 # *** PRIVATE
