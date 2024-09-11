@@ -402,6 +402,8 @@ func _build_gui() -> void:
 	_entry = CommandEntry.new()
 	vbox.add_child(_entry)
 
+	_control.modulate = Color(1.0, 1.0, 1.0, _options.opacity)
+
 
 func _init_theme() -> void:
 	var theme: Theme
