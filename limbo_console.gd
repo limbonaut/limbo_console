@@ -554,6 +554,14 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 	var max_args: int = method_info.args.size()
 	var num_with_defaults: int = method_info.default_args.size()
 	var required_args: int = max_args - num_with_defaults
+
+	# Join all arguments into a single string if the callable accepts a single string argument.
+	if max_args == 1 and method_info.args[0].type == TYPE_STRING:
+		var a: String = " ".join(p_argv.slice(1))
+		if a.left(1) == '"' and a.right(1) == '"':
+			a = a.trim_prefix('"').trim_suffix('"')
+		r_args.append(a)
+		return true
 	if num_args < required_args:
 		error("Missing arguments.")
 		return false
@@ -568,7 +576,9 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 		var expected_type: int = method_info.args[i - 1].type
 
 		if expected_type == TYPE_STRING:
-			r_args[i - 1] = a.trim_prefix('"').trim_suffix('"')
+			if a.left(1) == '"' and a.right(1) == '"':
+				a = a.trim_prefix('"').trim_suffix('"')
+			r_args[i - 1] = a
 		elif a.begins_with('(') and a.ends_with(')'):
 			var vec = _parse_vector_arg(a)
 			if vec != null:
