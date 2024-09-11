@@ -7,12 +7,13 @@ const CONFIG_PATH := "res://addons/limbo_console.cfg"
 	"usage": "help",
 	"exit": "quit",
 }
-@export var custom_theme: String = "res://addons/limbo_console_theme.tres"
 @export var disable_in_release_build: bool = false
 @export var print_to_stdout: bool = false
 
-## Print empty line after each command execution.
-@export var sparse_mode: bool = false
+@export_category("appearance")
+@export var custom_theme: String = "res://addons/limbo_console_theme.tres"
+@export var height_ratio: float = 0.5
+@export var sparse_mode: bool = false # Print empty line after each command execution.
 
 @export_category("greet")
 @export var greet_user: bool = true

@@ -383,7 +383,7 @@ func usage(p_command_name: String) -> Error:
 func _build_gui() -> void:
 	var panel := PanelContainer.new()
 	_control = panel
-	panel.anchor_bottom = 0.5
+	panel.anchor_bottom = _options.height_ratio
 	panel.anchor_right = 1.0
 	add_child(panel)
 
