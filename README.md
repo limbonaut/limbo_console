@@ -2,7 +2,8 @@
   <img src=".github/logo.png" width=128 alt="LimboConsole logo">
 </p>
 
-# LimboConsole
+---
+![Limbo Console](.github/demonstration.gif)
 
 ![Static Badge](https://img.shields.io/badge/Godot-4.3-blue?style=flat)
 [![GitHub License](https://img.shields.io/github/license/limbonaut/limbo_console)](https://github.com/limbonaut/limbo_console/blob/master/LICENSE.md)
@@ -14,6 +15,7 @@ It supports auto-completion with `TAB` for commands and history, auto-correction
 This plugin is currently in development, so expect breaking changes.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Y8Y2TCNH0)
+
 
 ## How to use
 
@@ -39,7 +41,7 @@ LimboConsole.register_command(multiply, "multiply", "multiply two numbers")
 
 Several basic types are supported for command arguments, such as `bool`, `int`, `float`, `String` and `Vector{2,3,4}` types. To enter a `Vector2` argument, enclose its components in parentheses, like this: `(1 2)`. String arguments can also be enclosed in double quotation marks `"`.
 
-Autocompletion works for both command names and history. It can also be implemented for specific command arguments, as shown in the following example: 
+Autocompletion works for both command names and history. It can also be implemented for specific command arguments, as shown in the following example:
 ```gdscript
 LimboConsole.register_command(teleport, "teleport", "teleport to site on this level")
 LimboConsole.add_argument_autocomplete_source("teleport", 1,
