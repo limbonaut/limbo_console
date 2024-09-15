@@ -359,6 +359,7 @@ func usage(p_command_name: String) -> Error:
 				def_value = "\"" + def_value + "\""
 			def_spec = " = %s" % [def_value]
 		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
+	arg_lines = arg_lines.trim_suffix('\n')
 
 	print_line(usage_line)
 
