@@ -21,7 +21,7 @@ This plugin is currently in development, so expect breaking changes.
 
 > 🛈 LimboConsole can be added as a Git submodule
 
-Place the source code in the `res://addons/limbo_console/` directory, and enable this plugin in the project settings. Toggle the console with the `~` key (this can be changed in the Input Map tab in the project settings).
+Place the source code in the `res://addons/limbo_console/` directory, and enable this plugin in the project settings, then reload the project. Toggle the console with the `grave accent` key (the key to the left of the `1` key). This can be changed in the Input Map tab in the project settings.
 
 Adding a new command is quite simple:
 
