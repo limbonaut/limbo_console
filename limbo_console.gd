@@ -75,6 +75,7 @@ func _ready() -> void:
 	if _options.greet_user:
 		_greet()
 	_add_aliases_from_config.call_deferred()
+	_entry.autocomplete_requested.connect(_autocomplete)
 
 
 func _exit_tree() -> void:

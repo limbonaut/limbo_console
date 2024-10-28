@@ -3,6 +3,7 @@ extends TextEdit
 
 
 signal text_submitted(command_line: String)
+signal autocomplete_requested()
 
 var autocomplete_hint: String:
 	set(value):
@@ -52,8 +53,15 @@ func _input(event: InputEvent) -> void:
 				submit_text()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_C and event.get_modifiers_mask() == KEY_MASK_CTRL and get_selected_text().is_empty():
-			text = ""
-			text_changed.emit()
+			# Clear input on Ctrl+C if no text selected.
+			if event.is_pressed():
+				text = ""
+				text_changed.emit()
+			get_viewport().set_input_as_handled()
+		elif event.keycode in [KEY_RIGHT, KEY_END] and get_caret_column() == text.length():
+			# Request autocomplete on RIGHT & END.
+			if event.is_pressed() and not autocomplete_hint.is_empty():
+				autocomplete_requested.emit()
 			get_viewport().set_input_as_handled()
 
 
