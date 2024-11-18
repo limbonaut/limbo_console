@@ -622,7 +622,7 @@ func _parse_vector_arg(p_text):
 	var token: String
 	for i in range(1, p_text.length()):
 		var c: String = p_text[i]
-		if c.is_valid_int() or c == '.':
+		if c.is_valid_int() or c == '.' or c == '-':
 			token += c
 		elif c == ',' or c == ' ' or c == ')':
 			if token.is_empty() and c == ',' and p_text[i - 1] in [',', '(']:
