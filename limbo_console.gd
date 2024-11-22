@@ -25,6 +25,7 @@ var _control: Control
 var _control_block: Control
 var _output: RichTextLabel
 var _entry: CommandEntry
+var _previous_gui_focus: Control
 
 # Theme colors
 var _output_command_color: Color
@@ -124,6 +125,7 @@ func show_console() -> void:
 		_was_already_paused = get_tree().paused
 		if not _was_already_paused:
 			get_tree().paused = true
+		_previous_gui_focus = get_viewport().gui_get_focus_owner()
 		_entry.grab_focus()
 		toggled.emit(true)
 
@@ -134,6 +136,8 @@ func hide_console() -> void:
 		_control_block.hide()
 		if not _was_already_paused:
 			get_tree().paused = false
+		if is_instance_valid(_previous_gui_focus):
+			_previous_gui_focus.grab_focus()
 		toggled.emit(false)
 
 
