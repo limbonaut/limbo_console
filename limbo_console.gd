@@ -22,6 +22,7 @@ var enabled: bool = true:
 			hide_console()
 
 var _control: Control
+var _control_block: Control
 var _output: RichTextLabel
 var _entry: CommandEntry
 
@@ -47,6 +48,7 @@ var _hist_idx: int = -1
 var _autocomplete_matches: PackedStringArray
 var _eval_inputs: Dictionary
 var _silent: bool = false
+var _was_already_paused: bool = false
 
 
 func _init() -> void:
@@ -59,6 +61,7 @@ func _init() -> void:
 	_build_gui()
 	_init_theme()
 	_control.hide()
+	_control_block.hide()
 
 	if _options.persist_history:
 		_load_history()
@@ -117,7 +120,10 @@ func _input(p_event: InputEvent) -> void:
 func show_console() -> void:
 	if not _control.visible and enabled:
 		_control.show()
-		get_tree().paused = true
+		_control_block.show()
+		_was_already_paused = get_tree().paused
+		if not _was_already_paused:
+			get_tree().paused = true
 		_entry.grab_focus()
 		toggled.emit(true)
 
@@ -125,7 +131,9 @@ func show_console() -> void:
 func hide_console() -> void:
 	if _control.visible:
 		_control.hide()
-		get_tree().paused = false
+		_control_block.hide()
+		if not _was_already_paused:
+			get_tree().paused = false
 		toggled.emit(false)
 
 
@@ -404,6 +412,11 @@ func get_eval_inputs() -> Array:
 
 
 func _build_gui() -> void:
+	var con := Control.new() # To block mouse input.
+	_control_block = con
+	con.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(con)
+
 	var panel := PanelContainer.new()
 	_control = panel
 	panel.anchor_bottom = _options.height_ratio
