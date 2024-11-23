@@ -13,6 +13,7 @@ const CONFIG_PATH := "res://addons/limbo_console.cfg"
 @export_category("appearance")
 @export var custom_theme: String = "res://addons/limbo_console_theme.tres"
 @export var height_ratio: float = 0.5
+@export var open_speed: float = 5.0 # For instant, set to a really high float like 99999.0
 @export var opacity: float = 1.0
 @export var sparse_mode: bool = false # Print empty line after each command execution.
 

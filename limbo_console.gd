@@ -19,7 +19,9 @@ var enabled: bool = true:
 		enabled = value
 		set_process_input(enabled)
 		if not enabled and _control.visible:
-			hide_console()
+			_is_opening = false
+			set_process(false)
+			_hide_console()
 
 var _control: Control
 var _control_block: Control
@@ -51,6 +53,10 @@ var _eval_inputs: Dictionary
 var _silent: bool = false
 var _was_already_paused: bool = false
 
+var _open_t: float = 0.0
+var _open_speed: float = 5.0
+var _is_opening: bool = false
+
 
 func _init() -> void:
 	layer = 9999
@@ -64,6 +70,8 @@ func _init() -> void:
 	_control.hide()
 	_control_block.hide()
 
+	_open_speed = _options.open_speed
+
 	if _options.persist_history:
 		_load_history()
 
@@ -75,6 +83,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	set_process(false) # Note, if you do it in _init(), it won't actually stop it for some reason.
 	BuiltinCommands.register_commands()
 	if _options.greet_user:
 		_greet()
@@ -95,7 +104,9 @@ func _input(p_event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif _control.visible and p_event is InputEventKey and p_event.is_pressed():
 		var handled := true
-		if p_event.keycode == KEY_UP:
+		if not _is_opening:
+			pass # Don't accept input while closing console.
+		elif p_event.keycode == KEY_UP:
 			_hist_idx += 1
 			_fill_entry_from_history()
 		elif p_event.keycode == KEY_DOWN:
@@ -115,30 +126,42 @@ func _input(p_event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
+func _process(delta: float) -> void:
+	var done_sliding := false
+	if _is_opening:
+		_open_t = move_toward(_open_t, 1.0, _open_speed * delta)
+		if _open_t == 1:
+			done_sliding = true
+	else: # We close faster than opening.
+		_open_t = move_toward(_open_t, 0.0, _open_speed * delta * 1.5)
+		if _open_t == 0:
+			done_sliding = true
+
+	var eased := ease(_open_t, -1.75)
+	var new_y := remap(eased, 0, 1, -_control.size.y, 0)
+	_control.position.y = new_y
+
+	if done_sliding:
+		set_process(false)
+		if not _is_opening:
+			_hide_console()
+
+
 # *** PUBLIC INTERFACE
 
 
-func show_console() -> void:
-	if not _control.visible and enabled:
-		_control.show()
-		_control_block.show()
-		_was_already_paused = get_tree().paused
-		if not _was_already_paused:
-			get_tree().paused = true
-		_previous_gui_focus = get_viewport().gui_get_focus_owner()
-		_entry.grab_focus()
-		toggled.emit(true)
+func open_console() -> void:
+	if enabled:
+		_is_opening = true
+		set_process(true)
+		_show_console()
 
 
-func hide_console() -> void:
-	if _control.visible:
-		_control.hide()
-		_control_block.hide()
-		if not _was_already_paused:
-			get_tree().paused = false
-		if is_instance_valid(_previous_gui_focus):
-			_previous_gui_focus.grab_focus()
-		toggled.emit(false)
+func close_console() -> void:
+	if enabled:
+		_is_opening = false
+		set_process(true)
+		# _hide_console() is called in _process()
 
 
 func is_visible() -> bool:
@@ -146,10 +169,10 @@ func is_visible() -> bool:
 
 
 func toggle_console() -> void:
-	if _control.visible:
-		hide_console()
+	if _is_opening:
+		close_console()
 	else:
-		show_console()
+		open_console()
 
 
 ## Clears all messages in the console.
@@ -780,6 +803,29 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 
 
 # *** MISC
+
+
+func _show_console() -> void:
+	if not _control.visible and enabled:
+		_control.show()
+		_control_block.show()
+		_was_already_paused = get_tree().paused
+		if not _was_already_paused:
+			get_tree().paused = true
+		_previous_gui_focus = get_viewport().gui_get_focus_owner()
+		_entry.grab_focus()
+		toggled.emit(true)
+
+
+func _hide_console() -> void:
+	if _control.visible:
+		_control.hide()
+		_control_block.hide()
+		if not _was_already_paused:
+			get_tree().paused = false
+		if is_instance_valid(_previous_gui_focus):
+			_previous_gui_focus.grab_focus()
+		toggled.emit(false)
 
 
 ## Returns true if the callable can be registered as a command.
