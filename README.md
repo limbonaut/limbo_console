@@ -69,6 +69,7 @@ Some notable methods and properties:
 - LimboConsole.warning(text_line)
 - LimboConsole.toggle_console()
 - LimboConsole.add_argument_autocomplete_source(command_name, argument, callable)
+- LimboConsole.execute_script(path, silent)
 
 This is not a complete list. For the rest, check out `limbo_console.gd`.
 
@@ -81,14 +82,15 @@ Open the theme resource in Godot to customize it for your game. Console text col
 
 ### Scripting
 
-You can run simple scripts containing a list of commands to execute, one per line.
+You can execute simple scripts containing a sequence of commands:
 ```shell
 exec lcs/my_script.lcs
 ```
 
 Simple rules:
+- Commands must be provided in the same syntax as in the prompt, with each command on a separate line.
 - The script must exist at the specified path, either in the `res://` or `user://` directory.
-- The script must have the `.lcs` extension, but when running the command, you can omit the extension in the command line.
+- The script must have the `.lcs` extension, but when running the `exec` command, you can omit the extension in the command line.
 - A line that starts with a '#' is treated as a comment and is not executed as part of the script.
 
 You can have a script execute automatically every time the game starts. There is a special script called `user://autoexec.lcs` that runs each time the game starts. Please note that this file is not created automatically.
