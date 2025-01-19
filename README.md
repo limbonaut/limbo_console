@@ -90,3 +90,5 @@ Simple rules:
 - The script must exist at the specified path, either in the `res://` or `user://` directory.
 - The script must have the `.lcs` extension, but when running the command, you can omit the extension in the command line.
 - A line that starts with a '#' is treated as a comment and is not executed as part of the script.
+
+You can have a script execute automatically every time the game starts. There is a special script called `user://autoexec.lcs` that runs each time the game starts. Please note that this file is not created automatically.

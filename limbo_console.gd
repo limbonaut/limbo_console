@@ -88,6 +88,7 @@ func _ready() -> void:
 	if _options.greet_user:
 		_greet()
 	_add_aliases_from_config.call_deferred()
+	_run_autoexec_script.call_deferred()
 	_entry.autocomplete_requested.connect(_autocomplete)
 
 
@@ -363,9 +364,8 @@ func execute_script(p_file: String, p_silent: bool = true) -> void:
 		while not fa.eof_reached():
 			var line: String = fa.get_line()
 			LimboConsole.execute_command(line, p_silent)
-		return
 	else:
-		LimboConsole.error("File not found.")
+		LimboConsole.error("File not found: " + p_file.trim_prefix("user://"))
 
 
 ## Formats the tip text (hopefully useful ;).
@@ -545,6 +545,12 @@ func _add_aliases_from_config() -> void:
 			push_error("LimboConsole: Config error: Alias target not found: ", target)
 		else:
 			add_alias(alias, target)
+
+
+func _run_autoexec_script() -> void:
+	const autoexec_file := "user://autoexec.lcs"
+	if FileAccess.file_exists(autoexec_file):
+		execute_script(autoexec_file)
 
 
 func _load_history() -> void:
