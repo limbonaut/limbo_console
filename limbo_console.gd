@@ -453,6 +453,18 @@ func get_eval_inputs() -> Array:
 	return _eval_inputs.values()
 
 
+## Define the object that will be used as the base instance for "eval" command.
+## Can be null (the default) to not use any base instance.
+func set_eval_base_instance(object):
+	_eval_inputs["_base_instance"] = object
+
+
+## Get the object that will be used as the base instance for "eval" command.
+## Null by default.
+func get_eval_base_instance():
+	return _eval_inputs.get("_base_instance")
+
+
 # *** PRIVATE
 
 # *** INITIALIZATION

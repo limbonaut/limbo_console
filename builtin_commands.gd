@@ -104,7 +104,8 @@ static func cmd_eval(p_expression: String) -> Error:
 	if err != OK:
 		LimboConsole.error(exp.get_error_text())
 		return err
-	var result = exp.execute(LimboConsole.get_eval_inputs())
+	var result = exp.execute(LimboConsole.get_eval_inputs(),
+		LimboConsole.get_eval_base_instance())
 	if not exp.has_execute_failed():
 		if result != null:
 			LimboConsole.info(str(result))
