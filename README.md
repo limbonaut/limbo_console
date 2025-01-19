@@ -78,3 +78,15 @@ Options can be modified in the project-specific configuration file located at `r
 
 LimboConsole also supports UI theming. Simply duplicate the `default_theme.tres` file and rename it to `limbo_console_theme.tres`. The file path is important - it should be located at `res://addons/limbo_console_theme.tres`. You can change this location in the config file.
 Open the theme resource in Godot to customize it for your game. Console text colors can be adjusted in the `ConsoleColors` category.
+
+### Scripting
+
+You can run simple scripts containing a list of commands to execute, one per line.
+```shell
+exec lcs/my_script.lcs
+```
+
+Simple rules:
+- The script must exist at the specified path, either in the `res://` or `user://` directory.
+- The script must have the `.lcs` extension, but when running the command, you can omit the extension in the command line.
+- A line that starts with a '#' is treated as a comment and is not executed as part of the script.

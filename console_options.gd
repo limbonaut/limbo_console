@@ -4,8 +4,9 @@ extends RefCounted
 const CONFIG_PATH := "res://addons/limbo_console.cfg"
 
 @export var aliases := {
-	"usage": "help",
 	"exit": "quit",
+	"source": "exec",
+	"usage": "help",
 }
 @export var disable_in_release_build: bool = false
 @export var print_to_stdout: bool = false

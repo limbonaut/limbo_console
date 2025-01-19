@@ -319,7 +319,7 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 ## Parses the command line and executes the command if it's valid.
 func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	p_command_line = p_command_line.strip_edges()
-	if p_command_line.is_empty():
+	if p_command_line.is_empty() or p_command_line.strip_edges().begins_with('#'):
 		return
 
 	var argv: PackedStringArray = _parse_command_line(p_command_line)
@@ -352,6 +352,20 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	if _options.sparse_mode:
 		print_line("")
 	_silent = false
+
+
+## Execute commands from file.
+func execute_script(p_file: String, p_silent: bool = true) -> void:
+	if FileAccess.file_exists(p_file):
+		if not p_silent:
+			LimboConsole.info("Executing " + p_file);
+		var fa := FileAccess.open(p_file, FileAccess.READ)
+		while not fa.eof_reached():
+			var line: String = fa.get_line()
+			LimboConsole.execute_command(line, p_silent)
+		return
+	else:
+		LimboConsole.error("File not found.")
 
 
 ## Formats the tip text (hopefully useful ;).

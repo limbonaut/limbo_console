@@ -12,6 +12,7 @@ static func register_commands() -> void:
 	LimboConsole.register_command(cmd_commands, "commands", "list all commands")
 	LimboConsole.register_command(LimboConsole.info, "echo", "display a line of text")
 	LimboConsole.register_command(cmd_eval, "eval", "evaluate an expression")
+	LimboConsole.register_command(cmd_exec, "exec", "execute commands from file")
 	LimboConsole.register_command(cmd_fps_max, "fps_max", "limit framerate")
 	LimboConsole.register_command(cmd_fullscreen, "fullscreen", "toggle fullscreen mode")
 	LimboConsole.register_command(cmd_help, "help", "show command info")
@@ -111,6 +112,15 @@ static func cmd_eval(p_expression: String) -> Error:
 	else:
 		LimboConsole.error(exp.get_error_text())
 		return ERR_SCRIPT_FAILED
+
+
+static func cmd_exec(p_file: String, p_silent: bool = true) -> void:
+	if not p_file.ends_with(".lcs"):
+		# Prevent users from reading other game assets.
+		p_file += ".lcs"
+	if not FileAccess.file_exists(p_file):
+		p_file = "user://" + p_file
+	LimboConsole.execute_script(p_file, p_silent)
 
 
 static func cmd_fps_max(p_limit: int = -1) -> void:
