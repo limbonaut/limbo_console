@@ -454,6 +454,7 @@ func get_eval_inputs() -> Array:
 
 
 ## Define the object that will be used as the base instance for "eval" command.
+## When defined, this object will be the "self" for expressions.
 ## Can be null (the default) to not use any base instance.
 func set_eval_base_instance(object):
 	_eval_inputs["_base_instance"] = object
