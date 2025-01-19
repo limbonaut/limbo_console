@@ -43,7 +43,7 @@ var _entry_command_not_found_color: Color
 
 var _options: ConsoleOptions
 var _commands: Dictionary # command_name => Callable
-var _command_aliases: Dictionary # alias_name => command_name
+var _aliases: Dictionary # alias_name => command_to_run: PackedStringArray
 var _command_descriptions: Dictionary # command_name => description_text
 var _argument_autocomplete_sources: Dictionary # [command_name, arg_idx] => Callable
 var _history: PackedStringArray
@@ -227,8 +227,7 @@ func register_command(p_func: Callable, p_name: String = "", p_desc: String = ""
 	if _commands.has(name):
 		push_error("LimboConsole: Command already registered: " + p_name)
 		return
-	if _command_aliases.has(name):
-		push_warning("LimboConsole: Command alias exists with the same name: " + p_name)
+	# Note: It should be possible to have an alias with the same name.
 	_commands[name] = p_func
 	_command_descriptions[name] = p_desc
 
@@ -255,13 +254,13 @@ func unregister_command(p_func_or_name) -> void:
 
 ## Is a command or an alias registered by the given name.
 func has_command(p_name: String) -> bool:
-	return _commands.has(p_name) or _command_aliases.has(p_name)
+	return _commands.has(p_name)
 
 
 func get_command_names(p_include_aliases: bool = false) -> PackedStringArray:
 	var names: PackedStringArray = _commands.keys()
 	if p_include_aliases:
-		names.append_array(_command_aliases.keys())
+		names.append_array(_aliases.keys())
 	names.sort()
 	return names
 
@@ -270,28 +269,35 @@ func get_command_description(p_name: String) -> String:
 	return _command_descriptions.get(p_name, "")
 
 
-## Adds an alias for an existing command.
-func add_alias(p_alias: String, p_existing: String) -> void:
-	if has_command(p_alias):
-		push_error("LimboConsole: Command or alias already registered: " + p_alias)
+## Registers an alias for a command (may include arguments).
+func add_alias(p_alias: String, p_command_to_run: String) -> void:
+	if not p_alias.is_valid_identifier():
+		error("Invalid alias identifier.")
 		return
-	if not has_command(p_existing):
-		push_error("LimboConsole: Command not found: " + p_existing)
-		return
-	_command_aliases[p_alias] = p_existing
+	# It should be possible to override commands and existing aliases.
+	# It should be possible to create aliases for commands that are not yet registered,
+	# because some commands may be registered by local-to-scene scripts.
+	_aliases[p_alias] = _parse_command_line(p_command_to_run)
 
 
 ## Removes an alias by name.
 func remove_alias(p_name: String) -> void:
-	_command_aliases.erase(p_name)
+	_aliases.erase(p_name)
 
 
+## Is an alias registered by the given name.
+func has_alias(p_name: String) -> bool:
+	return _aliases.has(p_name)
+
+
+## Lists all registered aliases.
 func get_aliases() -> PackedStringArray:
-	return PackedStringArray(_command_aliases.keys())
+	return PackedStringArray(_aliases.keys())
 
 
-func get_alias_target(p_alias: String) -> String:
-	return _command_aliases.get(p_alias, "")
+## Returns the alias's actual command as an argument vector.
+func get_alias_argv(p_alias: String) -> PackedStringArray:
+	return _aliases.get(p_alias, [p_alias]).duplicate()
 
 
 ## Registers a callable that should return an array of possible values for the given argument and command.
@@ -306,8 +312,7 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 	if p_argument < 1 or p_argument > 5:
 		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
 		return
-	var dealiased_name: String = _command_aliases.get(p_command, p_command)
-	var key := [dealiased_name, p_argument]
+	var key := [p_command, p_argument]
 	_argument_autocomplete_sources[key] = p_source
 
 
@@ -318,7 +323,8 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		return
 
 	var argv: PackedStringArray = _parse_command_line(p_command_line)
-	var command_name: String = argv[0]
+	var expanded_argv: PackedStringArray = _expand_alias(argv)
+	var command_name: String = expanded_argv[0]
 	var command_args: Array = []
 
 	_silent = p_silent
@@ -326,25 +332,23 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		var history_line: String = " ".join(argv)
 		_push_history(history_line)
 		info("[color=%s][b]>[/b] %s[/color] %s" %
-				[_output_command_color.to_html(), command_name, " ".join(argv.slice(1, argv.size()))])
+				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
 
 	if not has_command(command_name):
 		error("Unknown command: " + command_name)
-		_suggest_similar_command(argv)
+		_suggest_similar_command(expanded_argv)
 		_silent = false
 		return
 
-	var dealiased_name: String = _command_aliases.get(command_name, command_name)
-
-	var cmd: Callable = _commands.get(dealiased_name)
-	var valid: bool = _parse_argv(argv, cmd, command_args)
+	var cmd: Callable = _commands.get(command_name)
+	var valid: bool = _parse_argv(expanded_argv, cmd, command_args)
 	if valid:
 		var err = cmd.callv(command_args)
 		var failed: bool = typeof(err) == TYPE_INT and err > 0
 		if failed:
-			_suggest_argument_corrections(argv)
+			_suggest_argument_corrections(expanded_argv)
 	else:
-		usage(command_name)
+		usage(argv[0])
 	if _options.sparse_mode:
 		print_line("")
 	_silent = false
@@ -361,22 +365,24 @@ func format_name(p_name: String) -> String:
 
 
 ## Prints the help text for the given command.
-func usage(p_command_name: String) -> Error:
-	if not has_command(p_command_name):
-		error("Command not found: " + p_command_name)
+func usage(p_command: String) -> Error:
+	if _aliases.has(p_command):
+		var alias_argv: PackedStringArray = get_alias_argv(p_command)
+		var formatted_cmd := "%s %s" % [format_name(alias_argv[0]), ' '.join(alias_argv.slice(1))]
+		print_line("Alias of: " + formatted_cmd)
+		p_command = alias_argv[0]
+
+	if not has_command(p_command):
+		error("Command not found: " + p_command)
 		return ERR_INVALID_PARAMETER
 
-	var dealiased_name: String = _command_aliases.get(p_command_name, p_command_name)
-	if dealiased_name != p_command_name:
-		print_line("Alias of " + format_name(dealiased_name) + ".")
-
-	var callable: Callable = _commands[dealiased_name]
+	var callable: Callable = _commands[p_command]
 	var method_info: Dictionary = Util.get_method_info(callable)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + callable.get_method())
 		print_line("Usage: ???")
 
-	var usage_line: String = "Usage: %s" % [dealiased_name]
+	var usage_line: String = "Usage: %s" % [p_command]
 	var arg_lines: String = ""
 	var required_args: int = method_info.args.size() - method_info.default_args.size()
 
@@ -400,7 +406,7 @@ func usage(p_command_name: String) -> Error:
 	print_line(usage_line)
 
 	var desc_line: String = ""
-	desc_line = _command_descriptions.get(dealiased_name, "")
+	desc_line = _command_descriptions.get(p_command, "")
 	if not desc_line.is_empty():
 		desc_line[0] = desc_line[0].capitalize()
 		if desc_line.right(1) != ".":
@@ -582,6 +588,14 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 	return argv
 
 
+## Substitutes alias with its real command in argv.
+func _expand_alias(p_argv: PackedStringArray) -> PackedStringArray:
+	if p_argv.size() > 0 and _aliases.has(p_argv[0]):
+		return _aliases.get(p_argv[0]) + p_argv.slice(1)
+	else:
+		return p_argv
+
+
 ## Converts arguments from String to types expected by the callable, and returns true if successful.
 ## The converted values are placed into a separate r_args array.
 func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array) -> bool:
@@ -708,11 +722,10 @@ func _autocomplete() -> void:
 
 ## Updates autocomplete suggestions and hint based on user input.
 func _update_autocomplete() -> void:
-	var argv: PackedStringArray = _parse_command_line(_entry.text)
+	var argv: PackedStringArray = _expand_alias(_parse_command_line(_entry.text))
 	if _entry.text.right(1) == ' ' or argv.size() == 0:
 		argv.append("")
 	var command_name: String = argv[0]
-	var dealiased_name: String = _command_aliases.get(command_name, command_name)
 	var last_arg: int = argv.size() - 1
 
 	if _autocomplete_matches.is_empty() and not _entry.text.is_empty():
@@ -725,7 +738,7 @@ func _update_autocomplete() -> void:
 			_autocomplete_matches.sort()
 		else:
 			# Arguments
-			var key := [dealiased_name, last_arg]
+			var key := [command_name, last_arg]
 			if _argument_autocomplete_sources.has(key) and not argv[last_arg].is_empty():
 				var argument_values = _argument_autocomplete_sources[key].call()
 				if typeof(argument_values) < TYPE_ARRAY:
@@ -776,14 +789,14 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 		return
 	var argv: PackedStringArray
 	var command_name: String = p_argv[0]
-	var dealiased_name: String = _command_aliases.get(command_name, command_name)
+	command_name = get_alias_argv(command_name)[0]
 	var corrected := false
 
 	argv.resize(p_argv.size())
 	argv[0] = command_name
 	for i in range(1, p_argv.size()):
 		var accepted_values = []
-		var key := [dealiased_name, i]
+		var key := [command_name, i]
 		var source: Callable = _argument_autocomplete_sources.get(key, Callable())
 		if source.is_valid():
 			accepted_values = source.call()

@@ -95,7 +95,7 @@ class CommandEntryHighlighter extends SyntaxHighlighter:
 
 	func _get_line_syntax_highlighting(line: int) -> Dictionary:
 		var command_color: Color
-		var command_name: String
+		var command: String
 		var text: String = get_text_edit().text
 		var end: int = 0
 
@@ -103,8 +103,8 @@ class CommandEntryHighlighter extends SyntaxHighlighter:
 			if c == ' ':
 				break
 			end += 1
-		command_name = text.substr(0, end).strip_edges()
-		command_color = command_found_color if LimboConsole.has_command(command_name) else command_not_found_color
+		command = text.substr(0, end).strip_edges()
+		command_color = command_found_color if LimboConsole.has_command(command) or LimboConsole.has_alias(command) else command_not_found_color
 
 		return {
 			0: {"color": command_color},

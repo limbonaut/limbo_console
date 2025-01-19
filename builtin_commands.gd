@@ -22,17 +22,21 @@ static func register_commands() -> void:
 
 
 static func cmd_aliases() -> void:
-	LimboConsole.info("Aliases:")
 	var aliases: Array = LimboConsole.get_aliases()
 	aliases.sort()
 	for alias in aliases:
-		var dealiased_name = LimboConsole.get_alias_target(alias)
-		var desc: String = LimboConsole.get_command_description(dealiased_name)
+		var alias_argv: PackedStringArray = LimboConsole.get_alias_argv(alias)
+		var cmd_name: String = alias_argv[0]
+		var desc: String = LimboConsole.get_command_description(cmd_name)
+		alias_argv[0] = LimboConsole.format_name(cmd_name)
 		if desc.is_empty():
 			LimboConsole.info(LimboConsole.format_name(alias))
 		else:
-			LimboConsole.info("%s -- same as %s; %s" %
-				[LimboConsole.format_name(alias), LimboConsole.format_name(dealiased_name), desc])
+			LimboConsole.info("%s is alias of: %s %s" % [
+				LimboConsole.format_name(alias),
+				' '.join(alias_argv),
+				LimboConsole.format_tip(" // " + desc)
+			])
 
 
 static func cmd_commands() -> void:
