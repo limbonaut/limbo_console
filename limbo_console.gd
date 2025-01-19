@@ -548,9 +548,12 @@ func _add_aliases_from_config() -> void:
 
 
 func _run_autoexec_script() -> void:
-	const autoexec_file := "user://autoexec.lcs"
-	if FileAccess.file_exists(autoexec_file):
-		execute_script(autoexec_file)
+	if _options.autoexec_script.is_empty():
+		return
+	if _options.autoexec_auto_create and not FileAccess.file_exists(_options.autoexec_script):
+		FileAccess.open(_options.autoexec_script, FileAccess.WRITE)
+	if FileAccess.file_exists(_options.autoexec_script):
+		execute_script(_options.autoexec_script)
 
 
 func _load_history() -> void:

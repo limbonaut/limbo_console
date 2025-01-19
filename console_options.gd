@@ -26,3 +26,7 @@ const CONFIG_PATH := "res://addons/limbo_console.cfg"
 @export_category("history")
 @export var persist_history: bool = true
 @export var history_lines: int = 1000
+
+@export_category("autoexec")
+@export var autoexec_script: String = "user://autoexec.lcs"
+@export var autoexec_auto_create: bool = true
