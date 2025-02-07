@@ -5,6 +5,8 @@ signal toggled(is_shown)
 
 const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
 const HISTORY_FILE := "user://limbo_console_history.log"
+# Custom builtin script support
+const CUSTOM_BUILTIN_SCRIPT := "res://addons/limbo_console.gd"
 
 const AsciiArt := preload("res://addons/limbo_console/ascii_art.gd")
 const BuiltinCommands := preload("res://addons/limbo_console/builtin_commands.gd")
@@ -45,6 +47,8 @@ var _options: ConsoleOptions
 var _commands: Dictionary # command_name => Callable
 var _aliases: Dictionary # alias_name => command_to_run: PackedStringArray
 var _command_descriptions: Dictionary # command_name => description_text
+# Command precalls support
+var _command_precalls: Dictionary # Callable => Callable
 var _argument_autocomplete_sources: Dictionary # [command_name, arg_idx] => Callable
 var _history: PackedStringArray
 var _hist_idx: int = -1
@@ -87,8 +91,10 @@ func _ready() -> void:
 	BuiltinCommands.register_commands()
 	if _options.greet_user:
 		_greet()
-	_add_aliases_from_config.call_deferred()
-	_run_autoexec_script.call_deferred()
+	_add_aliases_from_config()
+	# Custom builtin script support
+	_run_custom_builtin_script()
+	_run_autoexec_script()
 	_entry.autocomplete_requested.connect(_autocomplete)
 
 
@@ -270,6 +276,18 @@ func get_command_description(p_name: String) -> String:
 	return _command_descriptions.get(p_name, "")
 
 
+# Command precalls support
+func add_command_precall(p_func: Callable, p_precall: Callable) -> void:
+	if not _validate_precall(p_precall):
+		push_error("LimboConsole: Failed to add command precall: %s" % p_func)
+		return
+	if _command_precalls.has(p_func):
+		push_error("LimboConsole: Precall already registered: %s" % p_func)
+		return
+	
+	_command_precalls[p_func] = p_precall
+
+
 ## Registers an alias for a command (may include arguments).
 func add_alias(p_alias: String, p_command_to_run: String) -> void:
 	if not p_alias.is_valid_identifier():
@@ -333,7 +351,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		var history_line: String = " ".join(argv)
 		_push_history(history_line)
 		info("[color=%s][b]>[/b] %s[/color] %s" %
-				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
+			[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
 
 	if not has_command(command_name):
 		error("Unknown command: " + command_name)
@@ -344,7 +362,13 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	var cmd: Callable = _commands.get(command_name)
 	var valid: bool = _parse_argv(expanded_argv, cmd, command_args)
 	if valid:
-		var err = cmd.callv(command_args)
+		# Command precalls support
+		var err
+		if _command_precalls.has(cmd):
+			err = _command_precalls[cmd].call(cmd, command_args)
+		else:
+			err = cmd.callv(command_args)
+		
 		var failed: bool = typeof(err) == TYPE_INT and err > 0
 		if failed:
 			_suggest_argument_corrections(expanded_argv)
@@ -595,6 +619,17 @@ func _save_history() -> void:
 	file.close()
 
 
+# Custom builtin script support
+func _run_custom_builtin_script() -> void:
+	var script := load(CUSTOM_BUILTIN_SCRIPT)
+	if not script:
+		return
+	if not script.has_method("_start"):
+		push_error("LimboConsole: Custom builtin script: Not founded method \"_start\"")
+		return
+	script._start()
+
+
 # *** PARSING
 
 
@@ -603,18 +638,24 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 	var argv: PackedStringArray = []
 	var arg: String = ""
 	var in_quotes: bool = false
-	var in_brackets: bool = false
+	var brackets: String = ""
 	var line: String = p_line.strip_edges()
 	var start: int = 0
 	var cur: int = 0
 	for char in line:
 		if char == '"':
 			in_quotes = not in_quotes
-		elif char == '(':
-			in_brackets = true
-		elif char == ')':
-			in_brackets = false
-		elif char == ' ' and not in_quotes and not in_brackets:
+		# Array support and Dictionary support
+		elif char == '(' or char == '{' or char == '[':
+			brackets += char
+		elif char == ')' or char == '}' or char == ']':
+			if char == ')':
+				brackets = brackets.erase(brackets.rfind('('))
+			elif char == '}':
+				brackets = brackets.erase(brackets.rfind('{'))
+			elif char == ']':
+				brackets = brackets.erase(brackets.rfind('['))
+		elif char == ' ' and not in_quotes and brackets.is_empty():
 			if cur > start:
 				argv.append(line.substr(start, cur - start))
 			start = cur + 1
@@ -678,6 +719,22 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 			else:
 				r_args[i - 1] = a
 				passed = false
+		# Dictionary support
+		elif a.begins_with('{') and a.ends_with('}'):
+			var dict = _parse_dictionary_arg(a)
+			if dict != null:
+				r_args[i - 1] = dict
+			else:
+				r_args[i - 1] = a
+				passed = false
+		# Array support
+		elif a.begins_with('[') and a.ends_with(']'):
+			var arr = _parse_array_arg(a)
+			if arr != null:
+				r_args[i - 1] = arr
+			else:
+				r_args[i - 1] = a
+				passed = false
 		elif a.is_valid_float():
 			r_args[i - 1] = a.to_float()
 		elif a.is_valid_int():
@@ -706,16 +763,23 @@ func _are_compatible_types(p_expected_type: int, p_parsed_type: int) -> bool:
 		(p_expected_type in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT] and p_parsed_type in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT]) or \
 		(p_expected_type in [TYPE_VECTOR2, TYPE_VECTOR2I] and p_parsed_type in [TYPE_VECTOR2, TYPE_VECTOR2I]) or \
 		(p_expected_type in [TYPE_VECTOR3, TYPE_VECTOR3I] and p_parsed_type in [TYPE_VECTOR3, TYPE_VECTOR3I]) or \
-		(p_expected_type in [TYPE_VECTOR4, TYPE_VECTOR4I] and p_parsed_type in [TYPE_VECTOR4, TYPE_VECTOR4I])
+		(p_expected_type in [TYPE_VECTOR4, TYPE_VECTOR4I] and p_parsed_type in [TYPE_VECTOR4, TYPE_VECTOR4I]) or \
+		# Array support and Dictionary support
+		(p_expected_type == TYPE_DICTIONARY and p_parsed_type == TYPE_DICTIONARY) or \
+		# Using range for support any type of array
+		(p_expected_type == TYPE_ARRAY and p_parsed_type == TYPE_ARRAY)
 
 
-func _parse_vector_arg(p_text):
+func _parse_vector_arg(p_text: String):
 	assert(p_text.begins_with('(') and p_text.ends_with(')'), "Vector string presentation must begin and end with round brackets")
+	# Unsafe conversion
+	if _options.unsafe_conversion:
+		return str_to_var(p_text)
 	var comp: Array
 	var token: String
 	for i in range(1, p_text.length()):
 		var c: String = p_text[i]
-		if c.is_valid_int() or c == '.' or c == '-':
+		if c not in [',', ' ', ')']:
 			token += c
 		elif c == ',' or c == ' ' or c == ')':
 			if token.is_empty() and c == ',' and p_text[i - 1] in [',', '(']:
@@ -723,6 +787,9 @@ func _parse_vector_arg(p_text):
 				token = '0'
 			if token.is_valid_float():
 				comp.append(token.to_float())
+				token = ""
+			elif _validate_const(token) != null:
+				comp.append(_validate_const(token))
 				token = ""
 			elif not token.is_empty():
 				error("Failed to parse vector argument: Not a number: \"" + token + "\"")
@@ -741,6 +808,154 @@ func _parse_vector_arg(p_text):
 	else:
 		error("LimboConsole supports 2,3,4-element vectors, but %d-element vector given." % [comp.size()])
 		return null
+
+
+# Dictionary support
+func _parse_dictionary_arg(p_text: String):
+	assert(p_text.begins_with('{') and p_text.ends_with('}'), "Dictionary string presentation must begin and end with curly brackets")
+	# Unsafe conversion
+	if _options.unsafe_conversion:
+		return str_to_var(p_text)
+	var ended: bool = false
+	var comp: Dictionary
+	var key = ""
+	#var val = ""
+	#var key_ended: bool = false
+	var brackets: String
+	var token = ""
+	for i in range(1, p_text.length()):
+		var c: String = p_text[i]
+		if ended:
+			error("Failed to parse dictionary argument: Founded text after dictionary end: %s" % p_text.substr(i, p_text.length() - i))
+			return null
+		if brackets:
+			token += c
+			if brackets == '(' and c == ')':
+				token = _parse_vector_arg(token)
+				if token == null:
+					error("Failed to parse dictionary argument: Parsed sub vector are null: \"%s\"" % token)
+					return null
+				brackets = ''
+			elif brackets == '[' and c == ']':
+				token = _parse_array_arg(token)
+				if token == null:
+					error("Failed to parse dictionary argument: Parsed sub array are null: \"%s\"" % token)
+					return null
+				brackets = ''
+			elif brackets == '{' and c == '}':
+				token = _parse_dictionary_arg(token)
+				if token == null:
+					error("Failed to parse dictionary argument: Parsed sub dictionary are null: \"%s\"" % token)
+					return null
+				brackets = ''
+		else: match c:
+			' ':
+				continue
+			'}':
+				if str(key).is_empty() or str(token).is_empty():
+					error("Failed to parse dictionary argument: key or value not founded: key: %s, value: %s" % [key, token])
+					return null
+				else:
+					if key is String:
+						if key.is_valid_float(): key = key.to_float()
+						elif key.is_valid_int(): key = key.to_int()
+						elif _validate_const(key) != null: key = _validate_const(key)
+					if token is String:
+						if token.is_valid_float(): token = token.to_float()
+						elif token.is_valid_int(): token = token.to_int()
+						elif _validate_const(token) != null: token = _validate_const(token)
+					comp[key] = token
+					ended = true
+			'(', '[', '{':
+				brackets = c
+				token = c
+			':', '=':
+				if str(key):
+					error("Failed to parse dictionary argument: Bad formatting: \"%s\"" % p_text)
+					info(format_tip("Tip: Dictionary should be in format: \"{key:value, key2:value2}\". Assignment can be ':' or '='. Key and value can be any type (eg: String, int, Vector, etc.)"))
+					return null
+				else: 
+					if str(token).is_empty():
+						error("Failed to parse dictionary argument: Missing key: \"%s\"" % p_text)
+						return null
+					else:
+						key = token
+						token = ""
+			',':
+				if str(key).is_empty() or str(token).is_empty():
+					error("Failed to parse dictionary argument: key or value not founded: key: %s, value: %s" % [key, token])
+					return null
+				else:
+					if key is String:
+						if key.is_valid_float(): key = key.to_float()
+						elif key.is_valid_int(): key = key.to_int()
+						elif _validate_const(key) != null: key = _validate_const(key)
+					if token is String:
+						if token.is_valid_float(): token = token.to_float()
+						elif token.is_valid_int(): token = token.to_int()
+						elif _validate_const(token) != null: token = _validate_const(token)
+					comp[key] = token
+					token = ""
+					key = ""
+			_:
+				token += c
+	return comp
+
+
+# Array support
+func _parse_array_arg(p_text: String):
+	assert(p_text.begins_with('[') and p_text.ends_with(']'), "Array string presentation must begin and end with square brackets")
+	# Unsafe conversion
+	if _options.unsafe_conversion:
+		return str_to_var(p_text)
+	var comp: Array
+	var token = ""
+	var brackets: String
+	for i in range(1, p_text.length()):
+		var c: String = p_text[i]
+		if brackets:
+			var a = token+c
+			if brackets == '(' and c == ')':
+				a = _parse_vector_arg(a)
+				if a == null:
+					error("Failed to parse dictionary argument: Parsed sub vector are null: \"%s\"" % token+c)
+					return null
+				brackets = ''
+			elif brackets == '[' and c == ']':
+				a = _parse_array_arg(a)
+				if a == null:
+					error("Failed to parse dictionary argument: Parsed sub array are null: \"%s\"" % token+c)
+					return null
+				brackets = ''
+			elif brackets == '{' and c == '}':
+				a = _parse_dictionary_arg(a)
+				if a == null:
+					error("Failed to parse dictionary argument: Parsed sub dictionary are null: \"%s\"" % token+c)
+					return null
+				brackets = ''
+			token = a
+		else: match c:
+			',', ' ', ']':
+				if p_text[i - 1] in [' ', ',', '[']:
+					continue
+				else:
+					if token is String:
+						if token.is_valid_float():
+							comp.append(token.to_float())
+						elif token.is_valid_int():
+							comp.append(token.to_int())
+						elif _validate_const(token) != null:
+							comp.append(_validate_const(token))
+						token = ''
+					else:
+						comp.append(token)
+						token = ''
+			'(', '[', '{':
+				brackets = c
+				token = c
+			_:
+				token += c
+	return comp
 
 
 # *** AUTOCOMPLETE
@@ -779,7 +994,7 @@ func _update_autocomplete() -> void:
 				var argument_values = _argument_autocomplete_sources[key].call()
 				if typeof(argument_values) < TYPE_ARRAY:
 					push_error("LimboConsole: Argument autocomplete source returned unsupported type: ",
-							type_string(typeof(argument_values)), " command: ", command_name)
+						type_string(typeof(argument_values)), " command: ", command_name)
 					argument_values = []
 				var matches: PackedStringArray = []
 				for value in argument_values:
@@ -793,8 +1008,8 @@ func _update_autocomplete() -> void:
 					_autocomplete_matches.append(_history[i])
 
 	if _autocomplete_matches.size() > 0 \
-			and _autocomplete_matches[0].length() > _entry.text.length() \
-			and _autocomplete_matches[0].begins_with(_entry.text):
+		and _autocomplete_matches[0].length() > _entry.text.length() \
+		and _autocomplete_matches[0].begins_with(_entry.text):
 		_entry.autocomplete_hint = _autocomplete_matches[0].substr(_entry.text.length())
 	else:
 		_entry.autocomplete_hint = ""
@@ -886,10 +1101,41 @@ func _validate_callable(p_callable: Callable) -> bool:
 
 	var ret := true
 	for arg in method_info.args:
-		if not arg.type in [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_VECTOR2, TYPE_VECTOR2I, TYPE_VECTOR3, TYPE_VECTOR3I, TYPE_VECTOR4, TYPE_VECTOR4I]:
+		if not arg.type in [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_VECTOR2, TYPE_VECTOR2I, TYPE_VECTOR3, TYPE_VECTOR3I, TYPE_VECTOR4, TYPE_VECTOR4I,\
+		# Dictionary support and Array support
+		TYPE_DICTIONARY, TYPE_ARRAY]:
 			push_error("LimboConsole: Unsupported argument type: %s is %s" % [arg.name, type_string(arg.type)])
 			ret = false
 	return ret
+
+
+# Command precalls support
+func _validate_precall(p_precall: Callable) -> bool:
+	var method_info: Dictionary = Util.get_method_info(p_precall)
+	if method_info.args.size() != 2:
+		push_error("LimboConsole: Precall must have only 2 arguments: %s" % p_precall)
+		return false
+	if method_info.args[0].type != TYPE_CALLABLE:
+		push_error("LimboConsole: Precall first method should be Callable: %s" % p_precall)
+		return false
+	elif method_info.args[1].type != TYPE_ARRAY:
+		push_error("LimboConsole: Precall args supports only Arrays: %s" % p_precall)
+		return false
+	
+	return true
+
+
+## Returns constant value if constant exists, else return null.
+func _validate_const(p_const) -> Variant:
+	if p_const in ["PI", "-PI"]:
+		return -PI if p_const.begins_with('-') else PI
+	elif p_const in ["TAU", "-TAU"]:
+		return -TAU if p_const.begins_with('-') else TAU
+	elif p_const in ["INF", "-INF"]:
+		return -INF if p_const.begins_with('-') else INF
+	elif p_const in ["NAN"]:
+		return NAN
+	return null
 
 
 func _fill_entry(p_line: String) -> void:
@@ -898,7 +1144,9 @@ func _fill_entry(p_line: String) -> void:
 
 
 func _fill_entry_from_history() -> void:
-	_hist_idx = wrapi(_hist_idx, -1, _history.size())
+	# Now scrolling stops when reaching the end or beginning of the history
+	_hist_idx = clampi(_hist_idx, -1, _history.size() - 1)
+	#_hist_idx = wrapi(_hist_idx, -1, _history.size())
 	if _hist_idx < 0:
 		_fill_entry("")
 	else:
