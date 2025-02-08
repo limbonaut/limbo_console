@@ -873,19 +873,19 @@ func _parse_dictionary_arg(p_text: String):
 			elif brackets == '(' and c == ')':
 				token = _parse_vector_arg(token)
 				if token == null:
-					error("Failed to parse dictionary argument: Parsed sub vector are null: \"%s\"" % token)
+					error("Failed to parse dictionary argument: Parsed sub vector are null")
 					return null
 				brackets = brackets.erase(brackets.rfind('('))
 			elif brackets == '[' and c == ']':
 				token = _parse_array_arg(token)
 				if token == null:
-					error("Failed to parse dictionary argument: Parsed sub array are null: \"%s\"" % token)
+					error("Failed to parse dictionary argument: Parsed sub array are null")
 					return null
 				brackets = brackets.erase(brackets.rfind('['))
 			elif brackets == '{' and c == '}':
 				token = _parse_dictionary_arg(token)
 				if token == null:
-					error("Failed to parse dictionary argument: Parsed sub dictionary are null: \"%s\"" % token)
+					error("Failed to parse dictionary argument: Parsed sub dictionary are null")
 					return null
 				brackets = brackets.erase(brackets.rfind('{'))
 		else: match c:
@@ -937,52 +937,74 @@ func _parse_array_arg(p_text: String):
 	# Unsafe conversion
 	if _options.unsafe_conversion:
 		return str_to_var(p_text)
+	var ended: bool
 	var comp: Array
 	var token = ""
 	var brackets: String
+	var in_quotes: bool
 	for i in range(1, p_text.length()):
 		var c: String = p_text[i]
-		if brackets:
-			var a = token+c
-			if brackets == '(' and c == ')':
-				a = _parse_vector_arg(a)
-				if a == null:
-					error("Failed to parse dictionary argument: Parsed sub vector are null: \"%s\"" % token+c)
+		if ended:
+			error("Failed to parse array argument: Founded text after array end: %s" % p_text.substr(i, p_text.length() - i))
+			return null
+		elif in_quotes:
+			token += c
+			if c == '"':
+				in_quotes = false
+		elif brackets:
+			token += c
+			if c == '"':
+				in_quotes = not in_quotes
+			elif c in ['(', '[', '{']:
+				brackets += c
+			elif c in [')', ']', '}'] and brackets.length() > 1:
+				if c == ')':
+					brackets = brackets.erase(brackets.rfind('('))
+				elif c == ']':
+					brackets = brackets.erase(brackets.rfind('['))
+				elif c == '}':
+					brackets = brackets.erase(brackets.rfind('{'))
+			elif brackets == '(' and c == ')':
+				token = _parse_vector_arg(token)
+				if token == null:
+					error("Failed to parse array argument: Parsed sub vector are null")
 					return null
-				brackets = ''
+				brackets = brackets.erase(brackets.rfind('('))
 			elif brackets == '[' and c == ']':
-				a = _parse_array_arg(a)
-				if a == null:
-					error("Failed to parse dictionary argument: Parsed sub array are null: \"%s\"" % token+c)
+				token = _parse_array_arg(token)
+				if token == null:
+					error("Failed to parse array argument: Parsed sub array are null")
 					return null
-				brackets = ''
+				brackets = brackets.erase(brackets.rfind('['))
 			elif brackets == '{' and c == '}':
-				a = _parse_dictionary_arg(a)
-				if a == null:
-					error("Failed to parse dictionary argument: Parsed sub dictionary are null: \"%s\"" % token+c)
+				token = _parse_dictionary_arg(token)
+				if token == null:
+					error("Failed to parse array argument: Parsed sub dictionary are null")
 					return null
-				brackets = ''
-			token = a
+				brackets = brackets.erase(brackets.rfind('{'))
 		else: match c:
+			'"':
+				in_quotes = true
+				token += c
 			',', ' ', ']':
 				if p_text[i - 1] in [' ', ',', '[']:
+					if c == ']': ended = true
 					continue
 				else:
 					if token is String:
-						if token.is_valid_float():
-							comp.append(token.to_float())
-						elif token.is_valid_int():
-							comp.append(token.to_int())
-						elif _validate_const(token) != null:
-							comp.append(_validate_const(token))
-						token = ''
-					else:
-						comp.append(token)
-						token = ''
+						if token.is_valid_float(): token = token.to_float()
+						elif token.is_valid_int(): token = token.to_int()
+						elif _validate_const(token) != null: token = _validate_const(token)
+						else: token = token.trim_prefix('"').trim_suffix('"')
+					comp.append(token)
+					token = ''
+					if c == ']':
+						ended = true
 			'(', '[', '{':
-				brackets = c
+				brackets += c
 				token = c
 			_:
+				if c == ' ' and not in_quotes: continue
 				token += c
 	return comp
 
