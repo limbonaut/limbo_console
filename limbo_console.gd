@@ -49,7 +49,7 @@ var _commands: Dictionary # command_name => Callable
 var _aliases: Dictionary # alias_name => command_to_run: PackedStringArray
 var _command_descriptions: Dictionary # command_name => description_text
 # Command precalls support
-var _command_precalls: Dictionary # Callable => Callable
+var _command_precalls: Dictionary # command_name => Callable
 var _argument_autocomplete_sources: Dictionary # [command_name, arg_idx] => Callable
 var _history: PackedStringArray
 var _hist_idx: int = -1
