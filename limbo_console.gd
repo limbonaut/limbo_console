@@ -15,6 +15,7 @@ const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
 const Util := preload("res://addons/limbo_console/util.gd")
 
+
 ## If false, prevents console from being shown. Commands can still be executed from code.
 var enabled: bool = true:
 	set(value):
@@ -91,9 +92,9 @@ func _ready() -> void:
 	BuiltinCommands.register_commands()
 	if _options.greet_user:
 		_greet()
-	_add_aliases_from_config()
 	# Custom builtin script support
-	_run_custom_builtin_script()
+	_init_custom_builtin_script()
+	_add_aliases_from_config()
 	_run_autoexec_script()
 	_entry.autocomplete_requested.connect(_autocomplete)
 
@@ -569,6 +570,17 @@ func _greet() -> void:
 	info(format_tip("-----"))
 
 
+# Custom builtin script support
+func _init_custom_builtin_script() -> void:
+	var script: Script = load(CUSTOM_BUILTIN_SCRIPT)
+	if not script:
+		return
+	var node := Node.new()
+	node.name = "CustomBuiltinScript"
+	node.set_script(script)
+	add_child(node)
+
+
 func _add_aliases_from_config() -> void:
 	for alias in _options.aliases:
 		var target = _options.aliases[alias]
@@ -618,13 +630,6 @@ func _save_history() -> void:
 		file.store_line(line)
 	file.close()
 
-
-# Custom builtin script support
-func _run_custom_builtin_script() -> void:
-	var script = load(CUSTOM_BUILTIN_SCRIPT)
-	if not script:
-		return
-	script.new()
 
 
 # *** PARSING
