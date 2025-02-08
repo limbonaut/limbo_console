@@ -621,13 +621,10 @@ func _save_history() -> void:
 
 # Custom builtin script support
 func _run_custom_builtin_script() -> void:
-	var script := load(CUSTOM_BUILTIN_SCRIPT)
+	var script = load(CUSTOM_BUILTIN_SCRIPT)
 	if not script:
 		return
-	if not script.has_method("_start"):
-		push_error("LimboConsole: Custom builtin script: Not founded method \"_start\"")
-		return
-	script._start()
+	script.new()
 
 
 # *** PARSING
