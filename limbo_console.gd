@@ -278,15 +278,37 @@ func get_command_description(p_name: String) -> String:
 
 
 # Command precalls support
-func add_command_precall(p_func: Callable, p_precall: Callable) -> void:
+func register_command_precall(p_precall: Callable, p_func_or_name) -> void:
 	if not _validate_precall(p_precall):
-		push_error("LimboConsole: Failed to add command precall: %s" % p_func)
+		push_error("LimboConsole: Failed to add command precall: %s" % p_func_or_name)
 		return
-	if _command_precalls.has(p_func):
-		push_error("LimboConsole: Precall already registered: %s" % p_func)
+	var cmd_name: String
+	if p_func_or_name is Callable:
+		cmd_name = p_func_or_name.get_method().trim_prefix('_').trim_prefix("cmd_")
+	elif p_func_or_name is String:
+		cmd_name = p_func_or_name
+	if _command_precalls.has(cmd_name):
+		push_error("LimboConsole: Precall already registered: %s" % cmd_name)
 		return
 	
-	_command_precalls[p_func] = p_precall
+	_command_precalls[cmd_name] = p_precall
+
+
+# Command precalls support
+## Unregisters the command precall specified by its name or a callable.
+func unregister_command_precall(p_func_or_name) -> void:
+	var cmd_name: String
+	if p_func_or_name is Callable:
+		var key = p_func_or_name.get_method().trim_prefix("_").trim_prefix("cmd_")
+		if _command_precalls.has(key):
+			cmd_name = key
+	elif p_func_or_name is String:
+		cmd_name = p_func_or_name
+	if cmd_name.is_empty() or not _command_precalls.has(cmd_name):
+		push_error("LimboConsole: Unregister failed - command not found: %s" % p_func_or_name)
+		return
+	
+	_command_precalls.erase(cmd_name)
 
 
 ## Registers an alias for a command (may include arguments).
@@ -365,8 +387,8 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	if valid:
 		# Command precalls support
 		var err
-		if _command_precalls.has(cmd):
-			err = _command_precalls[cmd].call(cmd, command_args)
+		if _command_precalls.has(command_name):
+			err = _command_precalls[command_name].call(cmd, command_args)
 		else:
 			err = cmd.callv(command_args)
 		
@@ -647,15 +669,17 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 	for char in line:
 		if char == '"':
 			in_quotes = not in_quotes
+		elif in_quotes:
+			pass
 		# Array support and Dictionary support
 		elif char == '(' or char == '{' or char == '[':
 			brackets += char
 		elif char == ')' or char == '}' or char == ']':
-			if char == ')':
+			if char == ')' and '(' in brackets:
 				brackets = brackets.erase(brackets.rfind('('))
-			elif char == '}':
+			elif char == '}' and '{' in brackets:
 				brackets = brackets.erase(brackets.rfind('{'))
-			elif char == ']':
+			elif char == ']' and '[' in brackets:
 				brackets = brackets.erase(brackets.rfind('['))
 		elif char == ' ' and not in_quotes and brackets.is_empty():
 			if cur > start:
@@ -821,55 +845,77 @@ func _parse_dictionary_arg(p_text: String):
 	var ended: bool = false
 	var comp: Dictionary
 	var key = ""
-	#var val = ""
-	#var key_ended: bool = false
 	var brackets: String
 	var token = ""
+	var in_quotes: bool
 	for i in range(1, p_text.length()):
 		var c: String = p_text[i]
 		if ended:
 			error("Failed to parse dictionary argument: Founded text after dictionary end: %s" % p_text.substr(i, p_text.length() - i))
 			return null
-		if brackets:
+		if in_quotes:
 			token += c
-			if brackets == '(' and c == ')':
+			if c == '"':
+				in_quotes = false
+		elif brackets:
+			token += c
+			if c == '"':
+				in_quotes = not in_quotes
+			elif c in ['(', '[', '{']:
+				brackets += c
+			elif c in [')', ']', '}'] and brackets.length() > 1:
+				if c == ')':
+					brackets = brackets.erase(brackets.rfind('('))
+				elif c == ']':
+					brackets = brackets.erase(brackets.rfind('['))
+				elif c == '}':
+					brackets = brackets.erase(brackets.rfind('{'))
+			elif brackets == '(' and c == ')':
 				token = _parse_vector_arg(token)
 				if token == null:
 					error("Failed to parse dictionary argument: Parsed sub vector are null: \"%s\"" % token)
 					return null
-				brackets = ''
+				brackets = brackets.erase(brackets.rfind('('))
 			elif brackets == '[' and c == ']':
 				token = _parse_array_arg(token)
 				if token == null:
 					error("Failed to parse dictionary argument: Parsed sub array are null: \"%s\"" % token)
 					return null
-				brackets = ''
+				brackets = brackets.erase(brackets.rfind('['))
 			elif brackets == '{' and c == '}':
 				token = _parse_dictionary_arg(token)
 				if token == null:
 					error("Failed to parse dictionary argument: Parsed sub dictionary are null: \"%s\"" % token)
 					return null
-				brackets = ''
+				brackets = brackets.erase(brackets.rfind('{'))
 		else: match c:
-			' ':
-				continue
-			'}':
-				if str(key).is_empty() or str(token).is_empty():
-					error("Failed to parse dictionary argument: key or value not founded: key: %s, value: %s" % [key, token])
+			'"':
+				in_quotes = true
+				token += c
+			'}', ',':
+				if str(key).is_empty() and str(token):
+					error("Failed to parse dictionary argument: key or value not founded: key: \"%s\", value: \"%s\"" % [key, token])
 					return null
+				elif str(key).is_empty() and str(token).is_empty():
+					continue
 				else:
 					if key is String:
 						if key.is_valid_float(): key = key.to_float()
 						elif key.is_valid_int(): key = key.to_int()
 						elif _validate_const(key) != null: key = _validate_const(key)
+						else: key = key.trim_prefix('"').trim_suffix('"')
 					if token is String:
 						if token.is_valid_float(): token = token.to_float()
 						elif token.is_valid_int(): token = token.to_int()
 						elif _validate_const(token) != null: token = _validate_const(token)
+						else: token = token.trim_prefix('"').trim_suffix('"')
 					comp[key] = token
-					ended = true
+					token = ''
+					key = ''
+					if c == '}':
+						ended = true
 			'(', '[', '{':
-				brackets = c
+				brackets += c
 				token = c
 			':', '=':
 				if str(key):
@@ -877,29 +923,10 @@ func _parse_dictionary_arg(p_text: String):
 					info(format_tip("Tip: Dictionary should be in format: \"{key:value, key2:value2}\". Assignment can be ':' or '='. Key and value can be any type (eg: String, int, Vector, etc.)"))
 					return null
 				else: 
-					if str(token).is_empty():
-						error("Failed to parse dictionary argument: Missing key: \"%s\"" % p_text)
-						return null
-					else:
-						key = token
-						token = ""
-			',':
-				if str(key).is_empty() or str(token).is_empty():
-					error("Failed to parse dictionary argument: key or value not founded: key: %s, value: %s" % [key, token])
-					return null
-				else:
-					if key is String:
-						if key.is_valid_float(): key = key.to_float()
-						elif key.is_valid_int(): key = key.to_int()
-						elif _validate_const(key) != null: key = _validate_const(key)
-					if token is String:
-						if token.is_valid_float(): token = token.to_float()
-						elif token.is_valid_int(): token = token.to_int()
-						elif _validate_const(token) != null: token = _validate_const(token)
-					comp[key] = token
+					key = token
 					token = ""
-					key = ""
 			_:
+				if c == ' ' and not in_quotes: continue
 				token += c
 	return comp
 
