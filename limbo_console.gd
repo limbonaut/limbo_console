@@ -880,7 +880,7 @@ func _hide_console() -> void:
 ## Returns true if the callable can be registered as a command.
 func _validate_callable(p_callable: Callable) -> bool:
 	var method_info: Dictionary = Util.get_method_info(p_callable)
-	if method_info.is_empty():
+	if p_callable.is_standard() and method_info.is_empty():
 		push_error("LimboConsole: Couldn't find method info for: " + p_callable.get_method())
 		return false
 
