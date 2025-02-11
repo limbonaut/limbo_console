@@ -40,10 +40,10 @@ static func get_method_info(p_callable: Callable) -> Dictionary:
 		var default_args: Array
 		for i in p_callable.get_argument_count():
 			var argument: Dictionary
+			argument["name"] = "arg%d" % i
 			argument["type"] = TYPE_NIL
 			args.push_back(argument)
-		for arg in p_callable.get_bound_arguments():
-			default_args.push_back(arg)
+		method_info["name"] = "<anonymous lambda>"
 		method_info["args"] = args
 		method_info["default_args"] = default_args
 	return method_info
