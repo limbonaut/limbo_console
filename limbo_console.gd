@@ -224,6 +224,9 @@ func register_command(p_func: Callable, p_name: String = "", p_desc: String = ""
 		return
 	var name: String = p_name
 	if name.is_empty():
+		if p_func.is_custom():
+			push_error("LimboConsole: Failed to register command: Callable is not method and no name was provided")
+			return
 		name = p_func.get_method().trim_prefix("_").trim_prefix("cmd_")
 	if _commands.has(name):
 		push_error("LimboConsole: Command already registered: " + p_name)
