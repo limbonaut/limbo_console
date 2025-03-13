@@ -379,7 +379,7 @@ func format_name(p_name: String) -> String:
 
 
 ## Prints the help text for the given command.
-func usage(p_command: String) -> Error:
+func usage(p_command: String, with_autocomplete_vals: bool = false) -> Error:
 	if _aliases.has(p_command):
 		var alias_argv: PackedStringArray = get_alias_argv(p_command)
 		var formatted_cmd := "%s %s" % [format_name(alias_argv[0]), ' '.join(alias_argv.slice(1))]
@@ -398,6 +398,7 @@ func usage(p_command: String) -> Error:
 
 	var usage_line: String = "Usage: %s" % [p_command]
 	var arg_lines: String = ""
+	var values_lines: String = ""
 	var required_args: int = method_info.args.size() - method_info.default_args.size()
 
 	for i in range(method_info.args.size()):
@@ -415,6 +416,13 @@ func usage(p_command: String) -> Error:
 				def_value = "\"" + def_value + "\""
 			def_spec = " = %s" % [def_value]
 		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
+		
+		if with_autocomplete_vals && _argument_autocomplete_sources.has([p_command, i + 1]):
+			var auto_complete_callable = _argument_autocomplete_sources[[p_command, i + 1]]
+			var arg_autocompletes = auto_complete_callable.call()
+			if len(arg_autocompletes) > 0:
+				var val = str(arg_autocompletes).replace("[", "").replace("]", "")
+				values_lines += " %s: %s\n" % [arg_name, val]
 	arg_lines = arg_lines.trim_suffix('\n')
 
 	print_line(usage_line)
@@ -430,6 +438,10 @@ func usage(p_command: String) -> Error:
 	if not arg_lines.is_empty():
 		print_line("Arguments:")
 		print_line(arg_lines)
+		
+	if not values_lines.is_empty():
+		print_line("Values:")
+		print_line(values_lines)
 	return OK
 
 
