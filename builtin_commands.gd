@@ -16,7 +16,7 @@ static func register_commands() -> void:
 	LimboConsole.register_command(cmd_fps_max, "fps_max", "limit framerate")
 	LimboConsole.register_command(cmd_fullscreen, "fullscreen", "toggle fullscreen mode")
 	LimboConsole.register_command(cmd_help, "help", "show command info")
-	LimboConsole.register_command(cmd_help_with_args, "help_with_args", "show command info with valid arguments")
+	LimboConsole.register_command(cmd_help_with_args, "help_with_args", "show command info with values from auto-complete sources listed")
 	LimboConsole.register_command(cmd_log, "log", "show recent log entries")
 	LimboConsole.register_command(cmd_quit, "quit", "exit the application")
 	LimboConsole.register_command(cmd_unalias, "unalias", "remove command alias")
