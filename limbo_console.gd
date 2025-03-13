@@ -775,7 +775,7 @@ func _update_autocomplete() -> void:
 		else:
 			# Arguments
 			var key := [command_name, last_arg]
-			if _argument_autocomplete_sources.has(key) and not argv[last_arg].is_empty():
+			if _argument_autocomplete_sources.has(key):
 				var argument_values = _argument_autocomplete_sources[key].call()
 				if typeof(argument_values) < TYPE_ARRAY:
 					push_error("LimboConsole: Argument autocomplete source returned unsupported type: ",
