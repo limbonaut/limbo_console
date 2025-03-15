@@ -224,6 +224,9 @@ func register_command(p_func: Callable, p_name: String = "", p_desc: String = ""
 		return
 	var name: String = p_name
 	if name.is_empty():
+		if p_func.is_custom():
+			push_error("LimboConsole: Failed to register command: Callable is not method and no name was provided")
+			return
 		name = p_func.get_method().trim_prefix("_").trim_prefix("cmd_")
 	if _commands.has(name):
 		push_error("LimboConsole: Command already registered: " + p_name)
@@ -880,7 +883,7 @@ func _hide_console() -> void:
 ## Returns true if the callable can be registered as a command.
 func _validate_callable(p_callable: Callable) -> bool:
 	var method_info: Dictionary = Util.get_method_info(p_callable)
-	if method_info.is_empty():
+	if p_callable.is_standard() and method_info.is_empty():
 		push_error("LimboConsole: Couldn't find method info for: " + p_callable.get_method())
 		return false
 
