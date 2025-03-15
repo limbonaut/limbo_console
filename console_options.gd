@@ -11,6 +11,10 @@ const CONFIG_PATH := "res://addons/limbo_console.cfg"
 @export var disable_in_release_build: bool = false
 @export var print_to_stdout: bool = false
 
+@export var commands_disabled_in_release: PackedStringArray = [
+	"eval" # enables arbitrary code execution and asset extraction in the running game.
+]
+
 @export_category("appearance")
 @export var custom_theme: String = "res://addons/limbo_console_theme.tres"
 @export var height_ratio: float = 0.5
