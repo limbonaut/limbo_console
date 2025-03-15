@@ -96,7 +96,6 @@ static func cmd_commands() -> void:
 		var desc: String = LimboConsole.get_command_description(name)
 		name = LimboConsole.format_name(name)
 		LimboConsole.info(name if desc.is_empty() else "%s -- %s" % [name, desc])
-	
 
 
 static func cmd_eval(p_expression: String) -> Error:
