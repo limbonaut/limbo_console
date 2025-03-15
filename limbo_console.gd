@@ -784,10 +784,6 @@ func _update_autocomplete() -> void:
 						matches.append(_entry.text.substr(0, _entry.text.length() - argv[last_arg].length()) + str(value))
 				matches.sort()
 				_autocomplete_matches.append_array(matches)
-			# History
-			for i in range(_history.size() - 1, -1, -1):
-				if _history[i].begins_with(_entry.text):
-					_autocomplete_matches.append(_history[i])
 
 	if _autocomplete_matches.size() > 0 \
 			and _autocomplete_matches[0].length() > _entry.text.length() \
