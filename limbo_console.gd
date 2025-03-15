@@ -400,7 +400,7 @@ func usage(p_command: String) -> Error:
 	var arg_lines: String = ""
 	var required_args: int = method_info.args.size() - method_info.default_args.size()
 
-	for i in range(method_info.args.size()):
+	for i in range(method_info.args.size() - callable.get_bound_arguments_count()):
 		var arg_name: String = method_info.args[i].name.trim_prefix("p_")
 		var arg_type: int = method_info.args[i].type
 		if i < required_args:
