@@ -96,10 +96,7 @@ func _exit_tree() -> void:
 	if _options.persist_history:
 		_save_history()
 
-
 func _input(p_event: InputEvent) -> void:
-	if p_event.is_echo():
-		return
 	if p_event.is_action_pressed("limbo_console_toggle"):
 		toggle_console()
 		get_viewport().set_input_as_handled()
