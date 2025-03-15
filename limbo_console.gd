@@ -387,7 +387,7 @@ func format_name(p_name: String) -> String:
 
 
 ## Prints the help text for the given command.
-func usage(p_command: String, with_autocomplete_vals: bool = false) -> Error:
+func usage(p_command: String) -> Error:
 	if _aliases.has(p_command):
 		var alias_argv: PackedStringArray = get_alias_argv(p_command)
 		var formatted_cmd := "%s %s" % [format_name(alias_argv[0]), ' '.join(alias_argv.slice(1))]
@@ -425,7 +425,7 @@ func usage(p_command: String, with_autocomplete_vals: bool = false) -> Error:
 			def_spec = " = %s" % [def_value]
 		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
 		
-		if with_autocomplete_vals && _argument_autocomplete_sources.has([p_command, i + 1]):
+		if _argument_autocomplete_sources.has([p_command, i + 1]):
 			var auto_complete_callable = _argument_autocomplete_sources[[p_command, i + 1]]
 			var arg_autocompletes = auto_complete_callable.call()
 			if len(arg_autocompletes) > 0:
