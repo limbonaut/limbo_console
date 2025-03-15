@@ -48,7 +48,7 @@ func _input(event: InputEvent) -> void:
 	if not has_focus():
 		return
 	if event is InputEventKey:
-		if event.keycode == KEY_ENTER:
+		if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
 			if event.is_pressed():
 				submit_text()
 			get_viewport().set_input_as_handled()
