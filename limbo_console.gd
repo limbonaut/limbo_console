@@ -400,7 +400,7 @@ func usage(p_command: String) -> Error:
 	var arg_lines: String = ""
 	var required_args: int = method_info.args.size() - method_info.default_args.size()
 
-	for i in range(method_info.args.size()):
+	for i in range(method_info.args.size() - callable.get_bound_arguments_count()):
 		var arg_name: String = method_info.args[i].name.trim_prefix("p_")
 		var arg_type: int = method_info.args[i].type
 		if i < required_args:
@@ -641,8 +641,8 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + p_callable.get_method())
 		return false
-
-	var num_args: int = p_argv.size() - 1
+	var num_bound_args: int = p_callable.get_bound_arguments_count()
+	var num_args: int = p_argv.size() + num_bound_args - 1
 	var max_args: int = method_info.args.size()
 	var num_with_defaults: int = method_info.default_args.size()
 	var required_args: int = max_args - num_with_defaults
