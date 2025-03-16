@@ -27,13 +27,13 @@ func _enter_tree() -> void:
 		
 	if not ProjectSettings.has_setting("input/limbo_auto_complete_reverse"):
 		print("LimboConsole: Adding \"limbo_auto_complete_reverse\" input action to project settings...")
-		var reverse_autocomplete_key_event = InputEventKey.new()
-		reverse_autocomplete_key_event.keycode = KEY_TAB
-		reverse_autocomplete_key_event.shift_pressed = true
+		var key_event = InputEventKey.new()
+		key_event.keycode = KEY_TAB
+		key_event.shift_pressed = true
 		
 		ProjectSettings.set_setting("input/limbo_auto_complete_reverse", {
 			"deadzone": 0.5,
-			"events": [reverse_autocomplete_key_event],
+			"events": [key_event],
 		})
 		do_project_setting_save = true
 		
