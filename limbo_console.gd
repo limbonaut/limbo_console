@@ -218,6 +218,10 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 ## Registers a new command for the specified callable. [br]
 ## Optionally, you can provide a name and a description.
 func register_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
+	if p_name.is_valid_ascii_identifier():
+		push_error("LimboConsole: Failed to register command: %s. A command cannot contain spaces" % [p_name])
+		return
+	
 	if not _validate_callable(p_func):
 		push_error("LimboConsole: Failed to register command: %s" % [p_func if p_name.is_empty() else p_name])
 		return
