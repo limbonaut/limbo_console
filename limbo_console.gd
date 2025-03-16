@@ -426,7 +426,6 @@ func usage(p_command: String) -> Error:
 		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
 		
 		if _argument_autocomplete_sources.has([p_command, i + 1]):
-			var auto_complete_callable = _argument_autocomplete_sources[[p_command, i + 1]]
 			var auto_complete_callable: Callable = _argument_autocomplete_sources[[p_command, i + 1]]
 			var arg_autocompletes: Array = auto_complete_callable.call()
 			if len(arg_autocompletes) > 0:
