@@ -110,6 +110,8 @@ func _input(p_event: InputEvent) -> void:
 		elif p_event.keycode == KEY_DOWN:
 			_hist_idx -= 1
 			_fill_entry_from_history()
+		elif p_event.is_action_pressed("limbo_auto_complete_reverse"):
+			_reverse_autocomplete()
 		elif p_event.keycode == KEY_TAB:
 			_autocomplete()
 		elif p_event.keycode == KEY_PAGEUP:
@@ -747,17 +749,24 @@ func _parse_vector_arg(p_text):
 
 # *** AUTOCOMPLETE
 
-
 ## Auto-completes a command or auto-correction on TAB.
 func _autocomplete() -> void:
 	if not _autocomplete_matches.is_empty():
-		var match: String = _autocomplete_matches[0]
-		_fill_entry(match)
+		var match_str: String = _autocomplete_matches[0]
+		_fill_entry(match_str)
 		_autocomplete_matches.remove_at(0)
-		_autocomplete_matches.push_back(match)
+		_autocomplete_matches.push_back(match_str)
 		_update_autocomplete()
-
-
+		
+func _reverse_autocomplete():
+	if not _autocomplete_matches.is_empty():
+		var match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
+		_autocomplete_matches.remove_at(_autocomplete_matches.size() - 1)
+		_autocomplete_matches.insert(0, match_str)
+		match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
+		_fill_entry(match_str)
+		_update_autocomplete()
+		
 ## Updates autocomplete suggestions and hint based on user input.
 func _update_autocomplete() -> void:
 	var argv: PackedStringArray = _expand_alias(_parse_command_line(_entry.text))
