@@ -7,7 +7,7 @@ const CONFIG_PATH_PROPERTY := &"CONFIG_PATH"
 const MAIN_SECTION_PROPERTY := &"MAIN_SECTION"
 const MAIN_SECTION_DEFAULT := "main"
 
-static var verbose: bool = true
+static var verbose: bool = false
 
 static func _get_config_file(p_object: Object) -> String:
 	var from_object_constant = p_object.get(CONFIG_PATH_PROPERTY)
