@@ -12,6 +12,7 @@ const CommandEntry := preload("res://addons/limbo_console/command_entry.gd")
 const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
 const Util := preload("res://addons/limbo_console/util.gd")
+const HistoryGui := preload("res://addons/limbo_console/history_gui.gd")
 
 ## If false, prevents console from being shown. Commands can still be executed from code.
 var enabled: bool = true:
@@ -24,8 +25,10 @@ var enabled: bool = true:
 			_hide_console()
 
 var _control: Control
+var _history_gui : HistoryGui
 var _control_block: Control
 var _output: RichTextLabel
+var _history_console: RichTextLabel
 var _entry: CommandEntry
 var _previous_gui_focus: Control
 
@@ -38,6 +41,7 @@ var _output_text_color: Color
 var _output_debug_color: Color
 var _entry_text_color: Color
 var _entry_hint_color: Color
+var _entry_fun_color: Color
 var _entry_command_found_color: Color
 var _entry_command_not_found_color: Color
 
@@ -64,7 +68,7 @@ func _init() -> void:
 
 	_options = ConsoleOptions.new()
 	ConfigMapper.load_from_config(_options)
-
+	
 	_build_gui()
 	_init_theme()
 	_control.hide()
@@ -96,32 +100,56 @@ func _exit_tree() -> void:
 	if _options.persist_history:
 		_save_history()
 
+func handle_command_input(p_event: InputEvent):
+	var handled := true
+	if not _is_opening:
+		pass # Don't accept input while closing console.
+	elif p_event.keycode == KEY_UP:
+		_hist_idx += 1
+		_fill_entry_from_history()
+	elif p_event.keycode == KEY_DOWN:
+		_hist_idx -= 1
+		_fill_entry_from_history()
+	elif p_event.keycode == KEY_TAB:
+		_autocomplete()
+	elif p_event.keycode == KEY_PAGEUP:
+		var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
+		scroll_bar.value -= scroll_bar.page
+	elif p_event.keycode == KEY_PAGEDOWN:
+		var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
+		scroll_bar.value += scroll_bar.page
+	else:
+		handled = false
+	if handled:
+		get_viewport().set_input_as_handled()
+
+func handle_history_input(p_event: InputEvent):
+	_history_gui.set_command_history(_history)
+	if p_event.keycode == KEY_UP and p_event.is_pressed():
+		_history_gui.increment_index()
+	elif p_event.keycode == KEY_DOWN and p_event.is_pressed():
+		_history_gui.decrement_index()
+	else:
+		_history_gui.update(_entry.text)
+
+
 func _input(p_event: InputEvent) -> void:
+	var ctrl_down = Input.is_key_pressed(KEY_CTRL)
+	var r_pressed = Input.is_key_pressed(KEY_R)
+	var c_pressed = Input.is_key_pressed(KEY_C)
 	if p_event.is_action_pressed("limbo_console_toggle"):
 		toggle_console()
 		get_viewport().set_input_as_handled()
+	# Check to see if the history gui should open
+	elif _control.visible and ctrl_down:
+		if (c_pressed || r_pressed) and _history_gui.visible:
+			_history_gui.set_visibility(false)
+		elif r_pressed:
+			_history_gui.set_visibility(not _history_gui.visible)
+	elif _history_gui.visible and p_event is InputEventKey:
+		handle_history_input(p_event)
 	elif _control.visible and p_event is InputEventKey and p_event.is_pressed():
-		var handled := true
-		if not _is_opening:
-			pass # Don't accept input while closing console.
-		elif p_event.keycode == KEY_UP:
-			_hist_idx += 1
-			_fill_entry_from_history()
-		elif p_event.keycode == KEY_DOWN:
-			_hist_idx -= 1
-			_fill_entry_from_history()
-		elif p_event.keycode == KEY_TAB:
-			_autocomplete()
-		elif p_event.keycode == KEY_PAGEUP:
-			var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
-			scroll_bar.value -= scroll_bar.page
-		elif p_event.keycode == KEY_PAGEDOWN:
-			var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
-			scroll_bar.value += scroll_bar.page
-		else:
-			handled = false
-		if handled:
-			get_viewport().set_input_as_handled()
+		handle_command_input(p_event)
 
 
 func _process(delta: float) -> void:
@@ -159,6 +187,7 @@ func close_console() -> void:
 	if enabled:
 		_is_opening = false
 		set_process(true)
+		_history_gui.visible = false
 		# _hide_console() is called in _process()
 
 
@@ -508,6 +537,10 @@ func _build_gui() -> void:
 	vbox.add_child(_entry)
 
 	_control.modulate = Color(1.0, 1.0, 1.0, _options.opacity)
+	
+	_history_gui = HistoryGui.new()
+	_output.add_child(_history_gui)
+	_history_gui.visible = false;
 
 
 func _init_theme() -> void:
@@ -527,6 +560,7 @@ func _init_theme() -> void:
 	_output_debug_color = theme.get_color(&"output_debug_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_text_color = theme.get_color(&"entry_text_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_hint_color = theme.get_color(&"entry_hint_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_fun_color = theme.get_color(&"my_fun_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_found_color = theme.get_color(&"entry_command_found_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_not_found_color = theme.get_color(&"entry_command_not_found_color", CONSOLE_COLORS_THEME_TYPE)
 
@@ -914,17 +948,25 @@ func _fill_entry_from_history() -> void:
 
 func _push_history(p_line: String) -> void:
 	var idx: int = _history.find(p_line)
+	# Duplicate commands not allowed in history
 	if idx != -1:
 		_history.remove_at(idx)
+	# Only add commands to the history gui once, order doesn't matter
+	else:
+		_history_gui.add_command(p_line)
 	_history.append(p_line)
 	_hist_idx = -1
 
 
 func _on_entry_text_submitted(p_command: String) -> void:
-	_clear_autocomplete()
-	_fill_entry("")
-	execute_command(p_command)
-	_update_autocomplete()
+	if _history_gui.visible:
+		_history_gui.visible = false
+		_fill_entry(_history_gui.get_current_text())
+	else:
+		_clear_autocomplete()
+		_fill_entry("")
+		execute_command(p_command)
+		_update_autocomplete()
 
 
 func _on_entry_text_changed() -> void:
