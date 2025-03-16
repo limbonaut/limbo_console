@@ -24,18 +24,17 @@ static func bbcode_strip(p_text: String) -> String:
 
 
 static func get_method_info(p_callable: Callable) -> Dictionary:
-	var method_info: Dictionary
-	if p_callable.is_standard():
-		var method_list: Array[Dictionary]
-		if p_callable.get_object() is GDScript:
-			method_list = p_callable.get_object().get_script_method_list()
-		else:
-			method_list = p_callable.get_object().get_method_list()
-		for m in method_list:
-			if m.name == p_callable.get_method():
-				method_info = m
-				break
-	elif p_callable.is_custom():
+	var method_info: Dictionary	
+	var method_list: Array[Dictionary]
+	if p_callable.get_object() is GDScript:
+		method_list = p_callable.get_object().get_script_method_list()
+	else:
+		method_list = p_callable.get_object().get_method_list()
+	for m in method_list:
+		if m.name == p_callable.get_method():
+			method_info = m
+			break
+	if !method_info and p_callable.is_custom():
 		var args: Array
 		var default_args: Array
 		for i in p_callable.get_argument_count():
