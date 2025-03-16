@@ -321,6 +321,11 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 	if p_argument < 1 or p_argument > 5:
 		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
 		return
+	var argument_values: Variant = p_source.call()
+	if typeof(argument_values) < TYPE_ARRAY:
+		push_error("LimboConsole:  Can't add autocomplete source: argument autocomplete source returned unsupported type: ",
+				type_string(typeof(argument_values)), " command: ", p_command)
+		return
 	var key := [p_command, p_argument]
 	_argument_autocomplete_sources[key] = p_source
 
@@ -791,11 +796,7 @@ func _update_autocomplete() -> void:
 			# Arguments
 			var key := [command_name, last_arg]
 			if _argument_autocomplete_sources.has(key):
-				var argument_values = _argument_autocomplete_sources[key].call()
-				if typeof(argument_values) < TYPE_ARRAY:
-					push_error("LimboConsole: Argument autocomplete source returned unsupported type: ",
-							type_string(typeof(argument_values)), " command: ", command_name)
-					argument_values = []
+				var argument_values: Array = _argument_autocomplete_sources[key].call()
 				var matches: PackedStringArray = []
 				for value in argument_values:
 					if str(value).begins_with(argv[last_arg]):
@@ -851,7 +852,7 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 		var source: Callable = _argument_autocomplete_sources.get(key, Callable())
 		if source.is_valid():
 			accepted_values = source.call()
-		if accepted_values == null or typeof(accepted_values) < TYPE_ARRAY:
+		if accepted_values == null:
 			continue
 		var fuzzy_hit: String = Util.fuzzy_match_string(p_argv[i], 2, accepted_values)
 		if not fuzzy_hit.is_empty():
