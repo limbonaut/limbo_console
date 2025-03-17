@@ -424,7 +424,6 @@ func usage(p_command: String) -> Error:
 				def_value = "\"" + def_value + "\""
 			def_spec = " = %s" % [def_value]
 		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
-		
 		if _argument_autocomplete_sources.has([p_command, i + 1]):
 			var auto_complete_callable: Callable = _argument_autocomplete_sources[[p_command, i + 1]]
 			var arg_autocompletes = auto_complete_callable.call()
@@ -446,7 +445,6 @@ func usage(p_command: String) -> Error:
 	if not arg_lines.is_empty():
 		print_line("Arguments:")
 		print_line(arg_lines)
-		
 	if not values_lines.is_empty():
 		print_line("Values:")
 		print_line(values_lines)
