@@ -144,10 +144,8 @@ func _input(p_event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	# Check to see if the history gui should open
 	elif p_event.is_action_pressed("limbo_console_search_history"):
-		_history_gui.set_visibility(not _history_gui.visible)
-		if _history_gui.visible:
-			_history_gui.set_command_history(_history)
-			_history_gui.search(_entry.text)
+		toggle_history()
+		get_viewport().set_input_as_handled()
 	elif _history_gui.visible and p_event is InputEventKey:
 		handle_history_input(p_event)
 	elif _control.visible and p_event is InputEventKey and p_event.is_pressed():
@@ -202,7 +200,14 @@ func toggle_console() -> void:
 		close_console()
 	else:
 		open_console()
-
+		
+func toggle_history() -> void:
+	_history_gui.set_visibility(not _history_gui.visible)
+	# Whenever the history gui becomes visible, make sure it has the latest
+	# history and do an initial search
+	if _history_gui.visible:
+		_history_gui.set_command_history(_history)
+		_history_gui.search(_entry.text)
 
 ## Clears all messages in the console.
 func clear_console() -> void:
