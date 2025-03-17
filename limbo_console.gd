@@ -28,7 +28,6 @@ var _control: Control
 var _history_gui : HistoryGui
 var _control_block: Control
 var _output: RichTextLabel
-var _history_console: RichTextLabel
 var _entry: CommandEntry
 var _previous_gui_focus: Control
 
@@ -41,7 +40,6 @@ var _output_text_color: Color
 var _output_debug_color: Color
 var _entry_text_color: Color
 var _entry_hint_color: Color
-var _entry_fun_color: Color
 var _entry_command_found_color: Color
 var _entry_command_not_found_color: Color
 
@@ -573,7 +571,6 @@ func _init_theme() -> void:
 	_output_debug_color = theme.get_color(&"output_debug_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_text_color = theme.get_color(&"entry_text_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_hint_color = theme.get_color(&"entry_hint_color", CONSOLE_COLORS_THEME_TYPE)
-	_entry_fun_color = theme.get_color(&"my_fun_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_found_color = theme.get_color(&"entry_command_found_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_not_found_color = theme.get_color(&"entry_command_not_found_color", CONSOLE_COLORS_THEME_TYPE)
 
