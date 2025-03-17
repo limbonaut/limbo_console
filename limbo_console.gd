@@ -129,25 +129,27 @@ func handle_history_input(p_event: InputEvent):
 	_history_gui.set_command_history(_history)
 	if p_event.keycode == KEY_UP and p_event.is_pressed():
 		_history_gui.increment_index()
+		_entry.grab_focus()
+		get_viewport().set_input_as_handled()
 	elif p_event.keycode == KEY_DOWN and p_event.is_pressed():
 		_history_gui.decrement_index()
+		_entry.grab_focus()
+		get_viewport().set_input_as_handled()
 	else:
-		_history_gui.update(_entry.text)
+		_history_gui.search(_entry.text)
+		_entry.grab_focus()
 
 
 func _input(p_event: InputEvent) -> void:
-	var ctrl_down = Input.is_key_pressed(KEY_CTRL)
-	var r_pressed = Input.is_key_pressed(KEY_R)
-	var c_pressed = Input.is_key_pressed(KEY_C)
 	if p_event.is_action_pressed("limbo_console_toggle"):
 		toggle_console()
 		get_viewport().set_input_as_handled()
 	# Check to see if the history gui should open
-	elif _control.visible and ctrl_down:
-		if (c_pressed || r_pressed) and _history_gui.visible:
-			_history_gui.set_visibility(false)
-		elif r_pressed:
-			_history_gui.set_visibility(not _history_gui.visible)
+	elif p_event.is_action_pressed("limbo_console_search_history"):
+		_history_gui.set_visibility(not _history_gui.visible)
+		if _history_gui.visible:
+			_history_gui.set_command_history(_history)
+			_history_gui.search(_entry.text)
 	elif _history_gui.visible and p_event is InputEventKey:
 		handle_history_input(p_event)
 	elif _control.visible and p_event is InputEventKey and p_event.is_pressed():
