@@ -804,6 +804,7 @@ func _update_autocomplete() -> void:
 				_autocomplete_matches.append_array(matches)
 			# History
 			if _options.autocomplete_use_history_with_matches or \
+			 		len(_autocomplete_matches) == 0:
 				for i in range(_history.size() - 1, -1, -1):
 					if _history[i].begins_with(_entry.text):
 						_autocomplete_matches.append(_history[i])
