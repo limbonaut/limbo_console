@@ -110,8 +110,8 @@ func handle_command_input(p_event: InputEvent):
 	elif p_event.keycode == KEY_DOWN:
 		_hist_idx -= 1
 		_fill_entry_from_history()
-    elif p_event.is_action_pressed("limbo_auto_complete_reverse"):
-        _reverse_autocomplete()
+	elif p_event.is_action_pressed("limbo_auto_complete_reverse"):
+		_reverse_autocomplete()
 	elif p_event.keycode == KEY_TAB:
 		_autocomplete()
 	elif p_event.keycode == KEY_PAGEUP:
