@@ -75,6 +75,18 @@ func search(command):
 			_number_visible = i
 		
 	_update_highlight()
+	if filter_shorted:
+		# Whenever the filter grows smaller, more results are available which
+		# can lead to instability when there are lots of results (i.e. 1000)
+		# This reults in some log before the scrollbar can update properly
+		# and this addresses this. 
+		# There's probably a better way to do this
+		# If you want to try, remove this callback and test out scroll
+		# behavior when 1000 entries are in the history
+		var callback = func():
+			await get_tree().create_timer(.05).timeout
+			_scroll_container.scroll_vertical = _scroll_container.get_v_scroll_bar().max_value
+		callback.call_deferred()
 
 	_scroll_container.scroll_vertical = _scroll_container.get_v_scroll_bar().max_value
 
@@ -117,10 +129,11 @@ func _update_highlight():
 	style.bg_color = Color("#515d70")
 	if is_instance_valid(_last_highlighted_label):
 		_last_highlighted_label.remove_theme_stylebox_override("normal")
-		
+
 	_history_labels[_current_index].add_theme_stylebox_override("normal", style)
 	_last_highlighted_label = _history_labels[_current_index]
 	_history_labels[_current_index].grab_focus()
+	_scroll_container.queue_sort()
 
 func _init_theme() -> void:
 	var _loaded_theme: Theme
