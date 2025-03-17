@@ -803,8 +803,7 @@ func _update_autocomplete() -> void:
 				matches.sort()
 				_autocomplete_matches.append_array(matches)
 			# History
-			if _options.autocomplete_use_history or \
-			 		not _argument_autocomplete_sources.has(key):
+			if _options.autocomplete_use_history_with_matches or \
 				for i in range(_history.size() - 1, -1, -1):
 					if _history[i].begins_with(_entry.text):
 						_autocomplete_matches.append(_history[i])
