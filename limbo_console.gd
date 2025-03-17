@@ -110,6 +110,8 @@ func handle_command_input(p_event: InputEvent):
 	elif p_event.keycode == KEY_DOWN:
 		_hist_idx -= 1
 		_fill_entry_from_history()
+    elif p_event.is_action_pressed("limbo_auto_complete_reverse"):
+        _reverse_autocomplete()
 	elif p_event.keycode == KEY_TAB:
 		_autocomplete()
 	elif p_event.keycode == KEY_PAGEUP:
@@ -245,12 +247,21 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 ## Registers a new command for the specified callable. [br]
 ## Optionally, you can provide a name and a description.
 func register_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
+	if !p_name.is_valid_ascii_identifier():
+		push_error("LimboConsole: Failed to register command: %s. A command must be a valid ascii identifier" % [p_name])
+		return
+	
 	if not _validate_callable(p_func):
 		push_error("LimboConsole: Failed to register command: %s" % [p_func if p_name.is_empty() else p_name])
 		return
 	var name: String = p_name
 	if name.is_empty():
+		if p_func.is_custom():
+			push_error("LimboConsole: Failed to register command: Callable is not method and no name was provided")
+			return
 		name = p_func.get_method().trim_prefix("_").trim_prefix("cmd_")
+	if not OS.is_debug_build() and _options.commands_disabled_in_release.has(name):
+		return
 	if _commands.has(name):
 		push_error("LimboConsole: Command already registered: " + p_name)
 		return
@@ -427,7 +438,7 @@ func usage(p_command: String, with_autocomplete_vals: bool = false) -> Error:
 	var values_lines: String = ""
 	var required_args: int = method_info.args.size() - method_info.default_args.size()
 
-	for i in range(method_info.args.size()):
+	for i in range(method_info.args.size() - callable.get_bound_arguments_count()):
 		var arg_name: String = method_info.args[i].name.trim_prefix("p_")
 		var arg_type: int = method_info.args[i].type
 		if i < required_args:
@@ -684,8 +695,8 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + p_callable.get_method())
 		return false
-
-	var num_args: int = p_argv.size() - 1
+	var num_bound_args: int = p_callable.get_bound_arguments_count()
+	var num_args: int = p_argv.size() + num_bound_args - 1
 	var max_args: int = method_info.args.size()
 	var num_with_defaults: int = method_info.default_args.size()
 	var required_args: int = max_args - num_with_defaults
@@ -788,17 +799,24 @@ func _parse_vector_arg(p_text):
 
 # *** AUTOCOMPLETE
 
-
 ## Auto-completes a command or auto-correction on TAB.
 func _autocomplete() -> void:
 	if not _autocomplete_matches.is_empty():
-		var match: String = _autocomplete_matches[0]
-		_fill_entry(match)
+		var match_str: String = _autocomplete_matches[0]
+		_fill_entry(match_str)
 		_autocomplete_matches.remove_at(0)
-		_autocomplete_matches.push_back(match)
+		_autocomplete_matches.push_back(match_str)
 		_update_autocomplete()
-
-
+		
+func _reverse_autocomplete():
+	if not _autocomplete_matches.is_empty():
+		var match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
+		_autocomplete_matches.remove_at(_autocomplete_matches.size() - 1)
+		_autocomplete_matches.insert(0, match_str)
+		match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
+		_fill_entry(match_str)
+		_update_autocomplete()
+		
 ## Updates autocomplete suggestions and hint based on user input.
 func _update_autocomplete() -> void:
 	var argv: PackedStringArray = _expand_alias(_parse_command_line(_entry.text))
@@ -919,7 +937,7 @@ func _hide_console() -> void:
 ## Returns true if the callable can be registered as a command.
 func _validate_callable(p_callable: Callable) -> bool:
 	var method_info: Dictionary = Util.get_method_info(p_callable)
-	if method_info.is_empty():
+	if p_callable.is_standard() and method_info.is_empty():
 		push_error("LimboConsole: Couldn't find method info for: " + p_callable.get_method())
 		return false
 
