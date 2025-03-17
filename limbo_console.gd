@@ -427,7 +427,7 @@ func usage(p_command: String) -> Error:
 		
 		if _argument_autocomplete_sources.has([p_command, i + 1]):
 			var auto_complete_callable: Callable = _argument_autocomplete_sources[[p_command, i + 1]]
-			var arg_autocompletes: Array = auto_complete_callable.call()
+			var arg_autocompletes = auto_complete_callable.call()
 			if len(arg_autocompletes) > 0:
 				var values: String = str(arg_autocompletes).replace("[", "").replace("]", "")
 				values_lines += " %s: %s\n" % [arg_name, values]
