@@ -63,6 +63,8 @@ func _input(event: InputEvent) -> void:
 			if event.is_pressed() and not autocomplete_hint.is_empty():
 				autocomplete_requested.emit()
 			get_viewport().set_input_as_handled()
+	if event.is_action_pressed("ui_up") or event.is_action_pressed("ui_down"):
+		get_viewport().set_input_as_handled()
 
 
 func _draw() -> void:
