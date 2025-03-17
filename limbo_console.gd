@@ -796,7 +796,7 @@ func _update_autocomplete() -> void:
 			# Arguments
 			var key := [command_name, last_arg]
 			if _argument_autocomplete_sources.has(key):
-				var argument_values: Array = _argument_autocomplete_sources[key].call()
+				var argument_values = _argument_autocomplete_sources[key].call()
 				var matches: PackedStringArray = []
 				for value in argument_values:
 					if str(value).begins_with(argv[last_arg]):
