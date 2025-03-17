@@ -135,7 +135,7 @@ func handle_history_input(p_event: InputEvent):
 		_history_gui.decrement_index()
 		_entry.grab_focus()
 		get_viewport().set_input_as_handled()
-	else:
+	elif p_event is InputEventKey:
 		_history_gui.search(_entry.text)
 		_entry.grab_focus()
 
