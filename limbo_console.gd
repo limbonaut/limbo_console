@@ -656,7 +656,7 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 	var required_args: int = max_args - num_with_defaults
 
 	# Join all arguments into a single string if the callable accepts a single string argument.
-	if max_args == 1 and method_info.args[0].type == TYPE_STRING:
+	if max_args - num_bound_args == 1 and method_info.args[0].type == TYPE_STRING:
 		var a: String = " ".join(p_argv.slice(1))
 		if a.left(1) == '"' and a.right(1) == '"':
 			a = a.trim_prefix('"').trim_suffix('"')
