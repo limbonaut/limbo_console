@@ -180,10 +180,10 @@ func clear_console() -> void:
 
 ## Erases the history that is persisted to the disk
 func erase_history() -> void:
+	_history = []
 	var file := FileAccess.open(LimboConsole.HISTORY_FILE, FileAccess.WRITE)
 	if file:
 		file.store_string("")
-		_history = []
 		file.close()
 
 
