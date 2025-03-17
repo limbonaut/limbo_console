@@ -898,7 +898,12 @@ func _validate_callable(p_callable: Callable) -> bool:
 	if p_callable.is_standard() and method_info.is_empty():
 		push_error("LimboConsole: Couldn't find method info for: " + p_callable.get_method())
 		return false
-
+	if p_callable.is_custom() and not method_info.is_empty() \
+		and method_info.get("name") == "<anonymous lambda>" \
+		and p_callable.get_bound_arguments_count() > 0:
+			push_error("LimboConsole: bound anonymous functions are unsupported")
+			return false
+		
 	var ret := true
 	for arg in method_info.args:
 		if not arg.type in [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_VECTOR2, TYPE_VECTOR2I, TYPE_VECTOR3, TYPE_VECTOR3I, TYPE_VECTOR4, TYPE_VECTOR4I]:
