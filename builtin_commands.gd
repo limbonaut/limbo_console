@@ -21,6 +21,18 @@ static func register_commands() -> void:
 	LimboConsole.register_command(cmd_unalias, "unalias", "remove command alias")
 	LimboConsole.register_command(cmd_vsync, "vsync", "adjust V-Sync")
 
+	var group = {
+		# subgroups in group
+		"subgroups_group": { 
+			"sub_sub_command": func(): LimboConsole.info("sub sub command!!!!"),
+			"sub_sub_command2": func(): LimboConsole.info("sub sub command2!!!!!!")
+		},
+		"sub_command": func(): LimboConsole.info("sub_command!!!!")
+	}
+
+	
+	LimboConsole.register_command_group(group, "command_group")
+	
 	LimboConsole.add_argument_autocomplete_source("help", 1, LimboConsole.get_command_names.bind(true))
 
 

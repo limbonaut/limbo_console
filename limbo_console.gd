@@ -214,6 +214,22 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 	if p_stdout:
 		print(Util.bbcode_strip(p_line))
 
+func register_command_group(p_dict: Dictionary, p_name: String = "", p_desc: String = "") -> void:
+	if not p_name.is_valid_ascii_identifier():
+		push_error("LimboConsole: Failed to register command: %s. A command must be a valid ascii identifier" % [p_name])
+		return
+	
+	if not _validate_command_group(p_dict):
+		push_error("LimboConsole: Failed to register command: %s. A " % [p_name])
+		return
+		
+	if _commands.has(p_name):
+		push_error("LimboConsole: Command already registered: " + p_name)
+		return
+	
+	_commands[p_name] = p_dict
+	# TODO: Add description
+	pass
 
 ## Registers a new command for the specified callable. [br]
 ## Optionally, you can provide a name and a description.
@@ -349,7 +365,25 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		_silent = false
 		return
 
-	var cmd: Callable = _commands.get(command_name)
+		
+	var cmd = _get_command_from_command_group_array(argv)
+	if cmd:
+		var command_group = _commands.duplicate()
+		var new_arg_v = []
+		var rebuild_args: bool = false
+		for val in argv:
+			if command_group.get(val) is Callable:
+				rebuild_args = true
+			elif command_group.get(val) is Dictionary:
+				command_group = command_group.get(val)
+				pass
+			if rebuild_args:
+				new_arg_v.append(val)
+		expanded_argv = new_arg_v
+	else:
+		cmd = _commands.get(command_name)
+	var command_or_group = _commands.get(command_name)
+	
 	var valid: bool = _parse_argv(expanded_argv, cmd, command_args)
 	if valid:
 		var err = cmd.callv(command_args)
@@ -771,6 +805,58 @@ func _reverse_autocomplete():
 		_fill_entry(match_str)
 		_update_autocomplete()
 		
+
+## Gets the dictionary from a registered group from an array of strings
+##	- the final parameter should end with the group that you want the 
+##		dictionary back for
+func _get_command_group_from_array(group_name_chain: Array[String]) -> Dictionary:
+	var current_grouping: Dictionary = _commands
+	for item in group_name_chain:
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			current_grouping = current_grouping[item]
+			pass
+		pass
+	pass
+	if current_grouping == _commands:
+		current_grouping = {}
+	return current_grouping
+	
+## Gets the key from a registered group from an array of strings 
+##  - the final parameter should end with the group that you want the 
+## 		dictionary back for
+func _get_command_group_key_from_array(group_name_chain: Array[String]):
+	var current_grouping: Dictionary = _commands
+	var cmd_group_key: String = ""
+	for item in group_name_chain:
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			cmd_group_key = item
+			pass
+		pass
+	pass
+	
+	return cmd_group_key
+	
+	
+## Gets the callable from a registered group from an array of strings 
+##  - an actual command should be the last index to this parameter
+func _get_command_from_command_group_array(group_name_chain: Array[String]):
+	var current_grouping: Dictionary = _commands
+	var result: Callable
+	for item in group_name_chain:
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			current_grouping = current_grouping[item]
+		elif current_grouping.has(item) \
+			and current_grouping.get(item) is Callable:
+			return current_grouping.get(item)
+			pass
+		pass
+	pass
+	
+	return null
+
 ## Updates autocomplete suggestions and hint based on user input.
 func _update_autocomplete() -> void:
 	var argv: PackedStringArray = _expand_alias(_parse_command_line(_entry.text))
@@ -780,15 +866,12 @@ func _update_autocomplete() -> void:
 	var last_arg: int = argv.size() - 1
 
 	if _autocomplete_matches.is_empty() and not _entry.text.is_empty():
-		if last_arg == 0:
-			# Command name
-			var line: String = _entry.text
-			for k in get_command_names(true):
-				if k.begins_with(line):
-					_autocomplete_matches.append(k)
-			_autocomplete_matches.sort()
-		else:
-			# Arguments
+		# check for groups first before args
+		var line: String = _entry.text
+		var lines = argv.slice(0, argv.size() - 1)
+		var current_group = _get_command_group_from_array(lines)
+		if current_group.is_empty() and last_arg != 0:
+			#do args
 			var key := [command_name, last_arg]
 			if _argument_autocomplete_sources.has(key):
 				var argument_values = _argument_autocomplete_sources[key].call()
@@ -802,10 +885,26 @@ func _update_autocomplete() -> void:
 						matches.append(_entry.text.substr(0, _entry.text.length() - argv[last_arg].length()) + str(value))
 				matches.sort()
 				_autocomplete_matches.append_array(matches)
-			# History
-			for i in range(_history.size() - 1, -1, -1):
-				if _history[i].begins_with(_entry.text):
-					_autocomplete_matches.append(_history[i])
+		elif last_arg == 0:
+			# Command name or root group
+			for k in get_command_names(true):
+				if k.begins_with(line):
+					_autocomplete_matches.append(k)
+			_autocomplete_matches.sort()
+		elif not current_group.is_empty() \
+			and last_arg != 0 \
+			and not current_group.has(argv[last_arg - 1]):
+			# command with group
+			var matches: PackedStringArray = []
+			for value in current_group.keys():
+					if str(value).begins_with(argv[last_arg]):
+						matches.append(_entry.text.substr(0, _entry.text.length() - argv[last_arg].length()) + str(value))
+			matches.sort()
+			_autocomplete_matches.append_array(matches)
+		# History
+		#for i in range(_history.size() - 1, -1, -1):
+			#if _history[i].begins_with(_entry.text):
+				#_autocomplete_matches.append(_history[i])
 
 	if _autocomplete_matches.size() > 0 \
 			and _autocomplete_matches[0].length() > _entry.text.length() \
@@ -906,6 +1005,18 @@ func _validate_callable(p_callable: Callable) -> bool:
 			ret = false
 	return ret
 
+
+	var ret =  true
+	for key in p_dict.keys():
+		var value = p_dict.get(key)
+		if value is Dictionary:
+			if not _validate_command_group(value):
+				push_error("LimboConsole: Failed to register subgroup: %s" % [key])
+				ret = false
+		elif value is Callable:
+			if not _validate_callable(value):
+				ret = false
+	return ret
 
 func _fill_entry(p_line: String) -> void:
 	_entry.text = p_line
