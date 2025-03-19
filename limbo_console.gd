@@ -387,35 +387,6 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	else:
 		var cmd_dict = _get_command_group_from_array(argv)
 		if cmd_dict:
-			
-			print(_group_command_descriptions)
-			var current_description = _group_command_descriptions
-			var current_key = command_name
-			# traverse argv until we hit the dictionary here
-			if current_description.has(command_name):
-				print('omg yes!')
-				var group_command_desc_dict: Dictionary = current_description.get(command_name)
-				var ite = []
-				for a in group_command_desc_dict.keys():
-					var result = argv.all(func(x): return a.any(func(y): return x == y))
-
-					var testing = x.includes(argv.slice(1))
-					if testing:
-						print("?????")
-						pass
-					pass
-					# PRINT ANYTHING WHERE THE KEY CONTAINS
-					# argsv.slice(1) and has a size of 2
-				pass
-					
-			for val in argv:
-				if current_description.has(val):
-					current_description = current_description.get(val)
-				else:
-					# WE CANT FIND ANYMORE LETS EXIT - idk if this is neccessary?
-					break
-					
-			if current_description == _group_command_descriptions:
 			_print_command_group(command_name, argv)
 			return
 		else:
