@@ -214,7 +214,7 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 	if p_stdout:
 		print(Util.bbcode_strip(p_line))
 
-var _group_command_descriptions: Dictionary = {}
+var _command_group_descriptions: Dictionary = {}
 
 func register_command_group(p_dict: Dictionary, p_desc_dict: Dictionary, p_name: String = "", p_desc: String = "") -> void:
 	if not p_name.is_valid_ascii_identifier():
@@ -231,7 +231,7 @@ func register_command_group(p_dict: Dictionary, p_desc_dict: Dictionary, p_name:
 	
 	_commands[p_name] = p_dict
 	_command_descriptions[p_name] = p_desc
-	_group_command_descriptions.set(p_name, p_desc_dict)
+	_command_group_descriptions.set(p_name, p_desc_dict)
 	
 	pass
 
@@ -416,14 +416,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 					break
 					
 			if current_description == _group_command_descriptions:
-				push_error("LimboConsole: Unable to find subgroup")
-				return
-				
-			print_line("%s:" % [command_name])
-			for item in current_description.keys():
-				# TODO: This is currently only printing the list
-				if item is Array && item.size() == 1:
-					print_line("\t%s: %s" % [str(item).replace("[\"", "").replace("\"]", ""), current_description.get(item)])
+			_print_command_group(command_name, argv)
 			return
 		else:
 			cmd = _commands.get(command_name)
@@ -440,6 +433,54 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		print_line("")
 	_silent = false
 
+func _print_command_group(command_name: String, argv: Array):
+	# TODO: Can we work from the command dictionary to make the descriptions
+	# instead of using the description array
+	var current_description = _command_group_descriptions
+	var current_key = command_name
+	if current_description.has(command_name):
+		var group_command_desc_dict: Dictionary = current_description.get(command_name)
+		var descs = group_command_desc_dict.keys() as Array[Array]
+		# get the descriptions KEYS that are either at this level
+		# or those that have commands underneath them
+		var description_keys_to_display: Array = []
+		for description in descs:
+			if group_command_desc_dict.get(description):
+				var potential_command_array = [command_name]
+				potential_command_array.append_array(description as Array)
+				var cmd_group = _get_command_group_from_array(potential_command_array)
+				# if arg count then its a callable (final destination baby) or
+				# if its the same length and ends with a group
+				if (description.size() == argv.size() - 1 and not cmd_group) \
+					or (description.size() == argv.size() and cmd_group):
+						description_keys_to_display.append(description)
+		
+		# Find the typed in command description to display
+		var command_description = ""
+		if argv.size() == 1: # root level command
+			command_description = _command_descriptions[argv[0]]
+		else: # should always be > 0?
+			for val in group_command_desc_dict.keys():
+				if _are_arrays_value_equal(val, argv.slice(1)):
+					command_description = group_command_desc_dict.get(val)
+		
+		print_line("Description: %s\n" % [command_description])
+		print_line("Commands:")
+		for description in description_keys_to_display:
+			var description_display = group_command_desc_dict.get(description)
+			var last_description_part = description[description.size() - 1]
+			#TODO: USE THE COLOR FROM THE THEME
+			print_line("\t[color=#95e6cb]%s[/color] -- %s" % [last_description_part, description_display])
+
+func _are_arrays_value_equal(arr1: Array, arr2: Array) -> bool:
+	if arr1.size() != arr2.size():
+		return false
+
+	for i in range(arr1.size()):
+		if arr1[i] != arr2[i]:
+			return false
+
+	return true
 
 ## Execute commands from file.
 func execute_script(p_file: String, p_silent: bool = true) -> void:
@@ -853,7 +894,7 @@ func _reverse_autocomplete():
 ## Gets the dictionary from a registered group from an array of strings
 ##	- the final parameter should end with the group that you want the 
 ##		dictionary back for
-func _get_command_group_from_array(group_name_chain: Array[String]) -> Dictionary:
+func _get_command_group_from_array(group_name_chain: Array) -> Dictionary:
 	var current_grouping: Dictionary = _commands
 	for item in group_name_chain:
 		if current_grouping.has(item) \

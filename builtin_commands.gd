@@ -25,24 +25,25 @@ static func register_commands() -> void:
 		# subgroups in group
 		"subgroups_group": { 
 			"sub_sub_command": func(): LimboConsole.info("sub sub command!!!!"),
-			"sub_sub_command2": func(): LimboConsole.info("sub sub command2!!!!!!")
+			"sub_sub_command2": func(): LimboConsole.info("sub sub command2!!!!!!"),
+			"sub_sub_sub": {
+				"sub_sub_sub_command": func(): LimboConsole.info("so deep!"),
+				"sub_sub_sub_sub": {
+					"sub_sub_sub_sub_command": func(): LimboConsole.info("last one...")
+				}
+			}
 		},
 		"sub_command": func(): LimboConsole.info("sub_command!!!!")
 	}
 	
-	#var group_descriptions = {
-		## subgroups in group
-		#"subgroups_group": { 
-			#"sub_sub_command": "The sub_sub command",
-			#"sub_sub_command2": "The sub_sub command 2"
-		#},
-		#"sub_command": "The sub_command"
-	#}
-	
 	var group_descriptions = {
 		["subgroups_group"]: "the subgroups group!",
+		["subgroups_group", "sub_sub_sub"]: "omg 2 layers deep!",
+		["subgroups_group", "sub_sub_sub", "sub_sub_sub_command"]: "wow",
+		["subgroups_group", "sub_sub_sub", "sub_sub_sub_sub"]: "wow another??",
+		["subgroups_group", "sub_sub_sub", "sub_sub_sub_sub", "sub_sub_sub_sub_command"]: "OMG THIS IS THE LAST ONE I SWEAR",
 		["subgroups_group", "sub_sub_command"]: "the sub sub command",
-		["subgroups_group", "sub_sub_command2"]: "the sub sub command",
+		["subgroups_group", "sub_sub_command2"]: "the sub sub command 2!!",
 		["sub_command"]: "The sub_command"
 	}
 	
