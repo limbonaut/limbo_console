@@ -385,7 +385,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	else:
 		var cmd_dict = _get_command_group_from_array(argv)
 		if cmd_dict:
-			_print_command_group(command_name, argv)
+			_print_command_group(command_name, argv, cmd_dict)
 			return
 		else:
 			cmd = _commands.get(command_name)
