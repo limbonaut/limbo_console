@@ -35,7 +35,8 @@ static func register_commands() -> void:
 		},
 		"sub_command": func(): LimboConsole.info("sub_command!!!!")
 	}
-	
+		
+	# These can be ommitted
 	var group_descriptions = {
 		["subgroups_group"]: "the subgroups group!",
 		["subgroups_group", "sub_sub_sub"]: "omg 2 layers deep!",

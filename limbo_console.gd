@@ -368,7 +368,6 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		_suggest_similar_command(expanded_argv)
 		_silent = false
 		return
-
 		
 	var cmd = _get_command_from_command_group_array(argv)
 	if cmd:
@@ -380,7 +379,6 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 				rebuild_args = true
 			elif command_group.get(val) is Dictionary:
 				command_group = command_group.get(val)
-				pass
 			if rebuild_args:
 				new_arg_v.append(val)
 		expanded_argv = new_arg_v
@@ -404,44 +402,42 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		print_line("")
 	_silent = false
 
-func _print_command_group(command_name: String, argv: Array):
-	# TODO: Can we work from the command dictionary to make the descriptions
-	# instead of using the description array
-	var current_description = _command_group_descriptions
-	var current_key = command_name
-	if current_description.has(command_name):
-		var group_command_desc_dict: Dictionary = current_description.get(command_name)
-		var descs = group_command_desc_dict.keys() as Array[Array]
-		# get the descriptions KEYS that are either at this level
-		# or those that have commands underneath them
-		var description_keys_to_display: Array = []
-		for description in descs:
-			if group_command_desc_dict.get(description):
-				var potential_command_array = [command_name]
-				potential_command_array.append_array(description as Array)
-				var cmd_group = _get_command_group_from_array(potential_command_array)
-				# if arg count then its a callable (final destination baby) or
-				# if its the same length and ends with a group
-				if (description.size() == argv.size() - 1 and not cmd_group) \
-					or (description.size() == argv.size() and cmd_group):
-						description_keys_to_display.append(description)
+func _print_command_group(command_name: String, argv: Array, command_group: Dictionary):
+	# TODO: Support 'root' command tree print aka (help) 
+	var command_group_description: Dictionary = _command_group_descriptions.get(command_name)
+	var registered_descriptions = command_group_description.keys() as Array
+	# get the current 
+	var command_description_key = null
+	for item in registered_descriptions:
+		var new_arr = argv.slice(1)
+		if _are_arrays_value_equal(item, new_arr):
+			command_description_key = item
 		
-		# Find the typed in command description to display
-		var command_description = ""
-		if argv.size() == 1: # root level command
-			command_description = _command_descriptions[argv[0]]
-		else: # should always be > 0?
-			for val in group_command_desc_dict.keys():
-				if _are_arrays_value_equal(val, argv.slice(1)):
-					command_description = group_command_desc_dict.get(val)
+	var description_keys = []
+	var cmd_or_group_names = []
+	for item in command_group.keys():
+		var argv_no_root = argv.slice(1)
+		argv_no_root.append(item)
+		cmd_or_group_names.append(item)
+		for desc in registered_descriptions:
+			if _are_arrays_value_equal(desc, argv_no_root):
+				description_keys.append(desc)
+		if cmd_or_group_names.size() != description_keys.size():
+			description_keys.append([])
+	
+	var group_description_display: String = ""
+	if command_description_key:
+		group_description_display = command_group_description.get(command_description_key)
+	print_line("Description: %s\n" % [group_description_display])
+	print_line("Commands:")
+	for i in len(cmd_or_group_names):
+		var description_display_key = description_keys[i]
+		var description_display = ""
+		if !description_display_key.is_empty():
+			description_display = command_group_description.get(description_display_key)
 		
-		print_line("Description: %s\n" % [command_description])
-		print_line("Commands:")
-		for description in description_keys_to_display:
-			var description_display = group_command_desc_dict.get(description)
-			var last_description_part = description[description.size() - 1]
-			#TODO: USE THE COLOR FROM THE THEME
-			print_line("\t[color=#95e6cb]%s[/color] -- %s" % [last_description_part, description_display])
+		#TODO: USE THE COLOR FROM THE THEME
+		print_line("\t[color=#95e6cb]%s[/color] -- %s" % [cmd_or_group_names[i], description_display])
 
 func _are_arrays_value_equal(arr1: Array, arr2: Array) -> bool:
 	if arr1.size() != arr2.size():
@@ -1075,6 +1071,11 @@ func _validate_command_group(p_dict: Dictionary) -> bool:
 				ret = false
 	return ret
 
+
+func _validate_command_group_descriptions(p_dict: Dictionary) -> bool:
+	# TODO: Implement
+	return false
+	
 func _fill_entry(p_line: String) -> void:
 	_entry.text = p_line
 	_entry.set_caret_column(p_line.length())
