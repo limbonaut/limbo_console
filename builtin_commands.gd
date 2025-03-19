@@ -29,9 +29,24 @@ static func register_commands() -> void:
 		},
 		"sub_command": func(): LimboConsole.info("sub_command!!!!")
 	}
-
 	
-	LimboConsole.register_command_group(group, "command_group")
+	#var group_descriptions = {
+		## subgroups in group
+		#"subgroups_group": { 
+			#"sub_sub_command": "The sub_sub command",
+			#"sub_sub_command2": "The sub_sub command 2"
+		#},
+		#"sub_command": "The sub_command"
+	#}
+	
+	var group_descriptions = {
+		["subgroups_group"]: "the subgroups group!",
+		["subgroups_group", "sub_sub_command"]: "the sub sub command",
+		["subgroups_group", "sub_sub_command2"]: "the sub sub command",
+		["sub_command"]: "The sub_command"
+	}
+	
+	LimboConsole.register_command_group(group, group_descriptions, "command_group", "first sub-group!")
 	
 	LimboConsole.add_argument_autocomplete_source("help", 1, LimboConsole.get_command_names.bind(true))
 

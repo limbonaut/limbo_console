@@ -214,7 +214,9 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 	if p_stdout:
 		print(Util.bbcode_strip(p_line))
 
-func register_command_group(p_dict: Dictionary, p_name: String = "", p_desc: String = "") -> void:
+var _group_command_descriptions: Dictionary = {}
+
+func register_command_group(p_dict: Dictionary, p_desc_dict: Dictionary, p_name: String = "", p_desc: String = "") -> void:
 	if not p_name.is_valid_ascii_identifier():
 		push_error("LimboConsole: Failed to register command: %s. A command must be a valid ascii identifier" % [p_name])
 		return
@@ -228,7 +230,9 @@ func register_command_group(p_dict: Dictionary, p_name: String = "", p_desc: Str
 		return
 	
 	_commands[p_name] = p_dict
-	# TODO: Add description
+	_command_descriptions[p_name] = p_desc
+	_group_command_descriptions.set(p_name, p_desc_dict)
+	
 	pass
 
 ## Registers a new command for the specified callable. [br]
@@ -381,8 +385,48 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 				new_arg_v.append(val)
 		expanded_argv = new_arg_v
 	else:
-		cmd = _commands.get(command_name)
-	var command_or_group = _commands.get(command_name)
+		var cmd_dict = _get_command_group_from_array(argv)
+		if cmd_dict:
+			
+			print(_group_command_descriptions)
+			var current_description = _group_command_descriptions
+			var current_key = command_name
+			# traverse argv until we hit the dictionary here
+			if current_description.has(command_name):
+				print('omg yes!')
+				var group_command_desc_dict: Dictionary = current_description.get(command_name)
+				var ite = []
+				for a in group_command_desc_dict.keys():
+					var result = argv.all(func(x): return a.any(func(y): return x == y))
+
+					var testing = x.includes(argv.slice(1))
+					if testing:
+						print("?????")
+						pass
+					pass
+					# PRINT ANYTHING WHERE THE KEY CONTAINS
+					# argsv.slice(1) and has a size of 2
+				pass
+					
+			for val in argv:
+				if current_description.has(val):
+					current_description = current_description.get(val)
+				else:
+					# WE CANT FIND ANYMORE LETS EXIT - idk if this is neccessary?
+					break
+					
+			if current_description == _group_command_descriptions:
+				push_error("LimboConsole: Unable to find subgroup")
+				return
+				
+			print_line("%s:" % [command_name])
+			for item in current_description.keys():
+				# TODO: This is currently only printing the list
+				if item is Array && item.size() == 1:
+					print_line("\t%s: %s" % [str(item).replace("[\"", "").replace("\"]", ""), current_description.get(item)])
+			return
+		else:
+			cmd = _commands.get(command_name)
 	
 	var valid: bool = _parse_argv(expanded_argv, cmd, command_args)
 	if valid:
@@ -1006,6 +1050,7 @@ func _validate_callable(p_callable: Callable) -> bool:
 	return ret
 
 
+func _validate_command_group(p_dict: Dictionary) -> bool:
 	var ret =  true
 	for key in p_dict.keys():
 		var value = p_dict.get(key)
