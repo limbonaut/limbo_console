@@ -680,7 +680,7 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 	var required_args: int = max_args - num_with_defaults
 
 	# Join all arguments into a single string if the callable accepts a single string argument.
-	if max_args == 1 and method_info.args[0].type == TYPE_STRING:
+	if max_args - num_bound_args == 1 and method_info.args[0].type == TYPE_STRING:
 		var a: String = " ".join(p_argv.slice(1))
 		if a.left(1) == '"' and a.right(1) == '"':
 			a = a.trim_prefix('"').trim_suffix('"')
@@ -922,7 +922,12 @@ func _validate_callable(p_callable: Callable) -> bool:
 	if p_callable.is_standard() and method_info.is_empty():
 		push_error("LimboConsole: Couldn't find method info for: " + p_callable.get_method())
 		return false
-
+	if p_callable.is_custom() and not method_info.is_empty() \
+		and method_info.get("name") == "<anonymous lambda>" \
+		and p_callable.get_bound_arguments_count() > 0:
+			push_error("LimboConsole: bound anonymous functions are unsupported")
+			return false
+		
 	var ret := true
 	for arg in method_info.args:
 		if not arg.type in [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_VECTOR2, TYPE_VECTOR2I, TYPE_VECTOR3, TYPE_VECTOR3I, TYPE_VECTOR4, TYPE_VECTOR4I]:
