@@ -371,8 +371,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		
 	var cmd = _get_command_from_command_group_array(argv)
 	if cmd:
-		var command_group = _commands.duplicate()
-		expanded_argv = _rebuild_args_for_group_command(argv, command_group)
+		expanded_argv = _rebuild_args_for_group_command(argv)
 	else:
 		var cmd_dict = _get_command_group_from_array(argv)
 		if cmd_dict:
@@ -394,7 +393,8 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	_silent = false
 
 
-func _rebuild_args_for_group_command(argv: Array, command_group: Dictionary):
+func _rebuild_args_for_group_command(argv: Array):
+	var command_group = _commands.duplicate()
 	var args_rebuilt: Array = []
 	var rebuild_args: bool = false
 	for val in argv:
@@ -968,8 +968,11 @@ func _update_autocomplete() -> void:
 		# check for groups first before args
 		var line: String = _entry.text
 		var lines = argv.slice(0, argv.size() - 1)
-		var current_group = _get_command_group_from_array(lines)
-		if current_group.is_empty() and last_arg != 0:
+		# check if current full line leads to a callable or a dictionary
+		var current_line_val = _get_command_from_command_group_array(lines)
+		if not current_line_val:
+			current_line_val = _get_command_group_from_array(lines)
+		if current_line_val is Callable and last_arg != 0:			
 			#do args
 			var key := [command_name, last_arg]
 			if _argument_autocomplete_sources.has(key):
@@ -990,12 +993,10 @@ func _update_autocomplete() -> void:
 				if k.begins_with(line):
 					_autocomplete_matches.append(k)
 			_autocomplete_matches.sort()
-		elif not current_group.is_empty() \
-			and last_arg != 0 \
-			and not current_group.has(argv[last_arg - 1]):
+		elif current_line_val is Dictionary and not current_line_val.is_empty():
 			# command with group
 			var matches: PackedStringArray = []
-			for value in current_group.keys():
+			for value in current_line_val.keys():
 					if str(value).begins_with(argv[last_arg]):
 						matches.append(_entry.text.substr(0, _entry.text.length() - argv[last_arg].length()) + str(value))
 			matches.sort()
