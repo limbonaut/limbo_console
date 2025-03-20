@@ -330,6 +330,10 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 	if p_argument < 1 or p_argument > 5:
 		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
 		return
+	var argument_values = p_source.call()
+	if not _validate_autocomplete_result(argument_values, p_command):
+		push_error("LimboConsole: Failed to add argument autocomplete source: Callable must return an array.")
+		return
 	var key := [p_command, p_argument]
 	_argument_autocomplete_sources[key] = p_source
 
@@ -811,9 +815,7 @@ func _update_autocomplete() -> void:
 			var key := [command_name, last_arg]
 			if _argument_autocomplete_sources.has(key):
 				var argument_values = _argument_autocomplete_sources[key].call()
-				if typeof(argument_values) < TYPE_ARRAY:
-					push_error("LimboConsole: Argument autocomplete source returned unsupported type: ",
-							type_string(typeof(argument_values)), " command: ", command_name)
+				if not _validate_autocomplete_result(argument_values, command_name):
 					argument_values = []
 				var matches: PackedStringArray = []
 				for value in argument_values:
@@ -872,7 +874,7 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 		var source: Callable = _argument_autocomplete_sources.get(key, Callable())
 		if source.is_valid():
 			accepted_values = source.call()
-		if accepted_values == null or typeof(accepted_values) < TYPE_ARRAY:
+		if accepted_values == null or not _validate_autocomplete_result(accepted_values, command_name):
 			continue
 		var fuzzy_hit: String = Util.fuzzy_match_string(p_argv[i], 2, accepted_values)
 		if not fuzzy_hit.is_empty():
@@ -926,6 +928,14 @@ func _validate_callable(p_callable: Callable) -> bool:
 			push_error("LimboConsole: Unsupported argument type: %s is %s" % [arg.name, type_string(arg.type)])
 			ret = false
 	return ret
+
+
+func _validate_autocomplete_result(p_result: Variant, p_command: String) -> bool:
+	if typeof(p_result) < TYPE_ARRAY:
+		push_error("LimboConsole: Argument autocomplete source failed: Expecting array but got: ",
+				type_string(typeof(p_result)), " command: ", p_command)
+		return false
+	return true
 
 
 func _fill_entry(p_line: String) -> void:
