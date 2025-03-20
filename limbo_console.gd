@@ -214,8 +214,6 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 	if p_stdout:
 		print(Util.bbcode_strip(p_line))
 
-var _command_group_descriptions: Dictionary = {}
-
 func register_command_group(p_dict: Dictionary, p_desc_dict: Dictionary, p_name: String = "", p_desc: String = "") -> void:
 	if not p_name.is_valid_ascii_identifier():
 		push_error("LimboConsole: Failed to register command: %s. A command must be a valid ascii identifier" % [p_name])
@@ -230,8 +228,10 @@ func register_command_group(p_dict: Dictionary, p_desc_dict: Dictionary, p_name:
 		return
 	
 	_commands[p_name] = p_dict
-	_command_descriptions[p_name] = p_desc
-	_command_group_descriptions.set(p_name, p_desc_dict)
+	_command_descriptions[[p_name]] = p_desc
+	for val in p_desc_dict.keys():
+		_command_descriptions.set(val, p_desc_dict[val])
+		
 	
 	pass
 
@@ -258,7 +258,7 @@ func register_command(p_func: Callable, p_name: String = "", p_desc: String = ""
 		return
 	# Note: It should be possible to have an alias with the same name.
 	_commands[name] = p_func
-	_command_descriptions[name] = p_desc
+	_command_descriptions[[name]] = p_desc
 
 
 ## Unregisters the command specified by its name or a callable.
@@ -409,43 +409,30 @@ func _rebuild_args_for_group_command(argv: Array):
 func _print_command_group(argv: Array):
 	# TODO: Support 'root' command tree print aka (help) [aka no args]
 	var command_name: String = argv[0]
-	var command_group_description: Dictionary = _command_group_descriptions.get(command_name)
-	var registered_descriptions = command_group_description.keys() as Array
+	var group_description_display: String = _command_descriptions.get(argv, "")
+	# should be no args so we dont need to use _get_args_from_command_group_array
+	var items = argv.size()
 	# get the current 
 	var command_description_key = null
-	var group_description_display: String = ""
-	if argv.size() == 1:
-		group_description_display = _command_descriptions[command_name]
-	else:
-		for item in registered_descriptions:
-			var new_arr = argv.slice(1)
-			if _are_arrays_value_equal(item, new_arr):
-				command_description_key = item
-		
 	var command_group: Dictionary = _get_command_group_from_array(argv)
-	var description_keys = []
+	var description_values = []
 	var cmd_or_group_names = []
+	# loop all keys at group
 	for item in command_group.keys():
-		var argv_no_root = argv.slice(1)
+		var argv_no_root = argv.duplicate()
 		argv_no_root.append(item)
 		cmd_or_group_names.append(item)
-		for desc in registered_descriptions:
-			if _are_arrays_value_equal(desc, argv_no_root):
-				description_keys.append(desc)
-		if cmd_or_group_names.size() != description_keys.size():
-			description_keys.append([])
-	if command_description_key:
-		group_description_display = command_group_description.get(command_description_key)
+		if _command_descriptions.has(argv_no_root):
+				description_values.append(_command_descriptions.get(argv_no_root))
+		if cmd_or_group_names.size() != description_values.size():
+			# if they arent the same size the user omitted a description
+			# add empty to the array so we can keep them the same size
+			description_values.append([])
 	print_line("Description: %s\n" % [group_description_display])
 	print_line("Commands:")
 	for i in len(cmd_or_group_names):
-		var description_display_key = description_keys[i]
-		var description_display = ""
-		if !description_display_key.is_empty():
-			description_display = command_group_description.get(description_display_key)
-		
 		#TODO: USE THE COLOR FROM THE THEME
-		print_line("\t[color=#95e6cb]%s[/color] -- %s" % [cmd_or_group_names[i], description_display])
+		print_line("\t[color=#95e6cb]%s[/color] -- %s" % [cmd_or_group_names[i], description_values[i]])
 
 func _are_arrays_value_equal(arr1: Array, arr2: Array) -> bool:
 	if arr1.size() != arr2.size():
@@ -546,20 +533,7 @@ func cmd_usage(callable: Callable, argv: Array):
 	print_line(usage_line)
 
 	var desc_line: String = ""
-	desc_line = _command_descriptions.get(argv[0], "")
-	if not desc_line:
-		var command_name: String = argv[0]
-		var command_group_description: Dictionary = _command_group_descriptions.get(command_name)
-		var registered_descriptions = command_group_description.keys() as Array
-		# get the current 
-		var command_description_key = null
-		for item in registered_descriptions:
-			var new_arr = argv.slice(1)
-			if _are_arrays_value_equal(item, new_arr):
-				command_description_key = item
-		pass
-		desc_line = command_group_description.get(command_description_key, "")
-		
+	desc_line = _command_descriptions.get(argv, "")
 	desc_line = "Description: %s" % [desc_line]
 	print_line(desc_line)
 	# TODO: what was this doing?
@@ -940,6 +914,7 @@ func _get_command_group_key_from_array(group_name_chain: Array[String]):
 	
 ## Gets the callable from a registered group from an array of strings 
 ##  - an actual command should be the last index to this parameter
+## NOTE: WILL RETURN THE FIRST CALLABLE IT FIND IN THE CHAIN
 func _get_command_from_command_group_array(group_name_chain: Array):
 	var current_grouping: Dictionary = _commands
 	var result: Callable
@@ -951,6 +926,10 @@ func _get_command_from_command_group_array(group_name_chain: Array):
 			and current_grouping.get(item) is Callable:
 			return current_grouping.get(item)
 			pass
+		else:
+			# if neither of the above are true we are requesting something
+			# that doesn't exist
+			return null
 		pass
 	pass
 	
