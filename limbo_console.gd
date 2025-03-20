@@ -323,8 +323,7 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 		return
 	var argument_values = p_source.call()
 	if not _validate_autocomplete_result(argument_values, p_command):
-		push_error("LimboConsole: can't add autocomplete source: result is not valid")
-		
+		push_error("LimboConsole: Failed to add argument autocomplete source: Callable must return an array.")
 		return
 	var key := [p_command, p_argument]
 	_argument_autocomplete_sources[key] = p_source
@@ -912,7 +911,7 @@ func _validate_callable(p_callable: Callable) -> bool:
 
 func _validate_autocomplete_result(p_result: Variant, p_command: String) -> bool:
 	if typeof(p_result) < TYPE_ARRAY:
-		push_error("LimboConsole:  Can't add autocomplete source: argument autocomplete source returned unsupported type: ",
+		push_error("LimboConsole: Argument autocomplete source failed: Expecting array but got: ",
 				type_string(typeof(p_result)), " command: ", p_command)
 		return false
 	return true
