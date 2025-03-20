@@ -420,7 +420,8 @@ func _print_command_group(argv: Array):
 	# loop all keys at group
 	for item in command_group.keys():
 		var argv_no_root = argv.duplicate()
-		argv_no_root.append(item)
+		 # TODO: Why is item a string name that we have to cast?
+		argv_no_root.append(item as String)
 		cmd_or_group_names.append(item)
 		if _command_descriptions.has(argv_no_root):
 				description_values.append(_command_descriptions.get(argv_no_root))
@@ -476,7 +477,7 @@ func group_cmd_usage(p_argv: Array) -> Error:
 	var expanded_argv: Array = []
 	var cmd = _get_command_from_command_group_array(p_argv)
 	if cmd:
-		cmd_usage(cmd, [p_argv[0]])
+		cmd_usage(cmd, p_argv)
 		return OK
 	var cmd_group = _get_command_group_from_array(p_argv)
 	if cmd_group:
@@ -501,7 +502,7 @@ func usage(p_command: String) -> Error:
 	
 	return cmd_usage(callable, [p_command])
 	
-
+#TODO: usage needs to put [] around group args
 func cmd_usage(callable: Callable, argv: Array):
 	var argv_packed = PackedStringArray(argv)
 	var usage_line: String = "Usage: %s" % [" ".join(argv_packed)]
