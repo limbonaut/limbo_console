@@ -228,7 +228,7 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 ## Registers a new command for the specified callable. [br]
 ## Optionally, you can provide a name and a description.
 func register_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
-	if !p_name.is_valid_ascii_identifier():
+	if p_name and not p_name.is_valid_ascii_identifier():
 		push_error("LimboConsole: Failed to register command: %s. A command must be a valid ascii identifier" % [p_name])
 		return
 	
