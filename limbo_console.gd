@@ -19,7 +19,7 @@ var enabled: bool = true:
 		enabled = value
 		set_process_input(enabled)
 		if not enabled and _control.visible:
-			_is_opening = false
+			_is_open = false
 			set_process(false)
 			_hide_console()
 
@@ -55,7 +55,7 @@ var _was_already_paused: bool = false
 
 var _open_t: float = 0.0
 var _open_speed: float = 5.0
-var _is_opening: bool = false
+var _is_open: bool = false
 
 
 func _init() -> void:
@@ -96,13 +96,14 @@ func _exit_tree() -> void:
 	if _options.persist_history:
 		_save_history()
 
+
 func _input(p_event: InputEvent) -> void:
 	if p_event.is_action_pressed("limbo_console_toggle"):
 		toggle_console()
 		get_viewport().set_input_as_handled()
 	elif _control.visible and p_event is InputEventKey and p_event.is_pressed():
 		var handled := true
-		if not _is_opening:
+		if not _is_open:
 			pass # Don't accept input while closing console.
 		elif p_event.keycode == KEY_UP:
 			_hist_idx += 1
@@ -128,13 +129,13 @@ func _input(p_event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	var done_sliding := false
-	if _is_opening:
+	if _is_open:
 		_open_t = move_toward(_open_t, 1.0, _open_speed * delta)
-		if _open_t == 1:
+		if _open_t == 1.0:
 			done_sliding = true
 	else: # We close faster than opening.
 		_open_t = move_toward(_open_t, 0.0, _open_speed * delta * 1.5)
-		if _open_t == 0:
+		if is_zero_approx(_open_t):
 			done_sliding = true
 
 	var eased := ease(_open_t, -1.75)
@@ -143,7 +144,7 @@ func _process(delta: float) -> void:
 
 	if done_sliding:
 		set_process(false)
-		if not _is_opening:
+		if not _is_open:
 			_hide_console()
 
 
@@ -152,24 +153,24 @@ func _process(delta: float) -> void:
 
 func open_console() -> void:
 	if enabled:
-		_is_opening = true
+		_is_open = true
 		set_process(true)
 		_show_console()
 
 
 func close_console() -> void:
 	if enabled:
-		_is_opening = false
+		_is_open = false
 		set_process(true)
 		# _hide_console() is called in _process()
 
 
-func is_visible() -> bool:
-	return _control.visible
+func is_open() -> bool:
+	return _is_open
 
 
 func toggle_console() -> void:
-	if _is_opening:
+	if _is_open:
 		close_console()
 	else:
 		open_console()
