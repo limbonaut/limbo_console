@@ -29,7 +29,7 @@ static func register_commands() -> void:
 			"sub_sub_sub": {
 				"sub_sub_sub_command": func(): LimboConsole.info("so deep!"),
 				"sub_sub_sub_sub": {
-					"sub_sub_sub_sub_command": func(): LimboConsole.info("last one...")
+					"sub_sub_sub_sub_command": func(number): LimboConsole.info("last one..." + str(number))
 				}
 			}
 		},
@@ -186,7 +186,7 @@ static func cmd_help(p_command_name: String = "") -> Error:
 				[LimboConsole.format_name("help command")]))
 		return OK
 	else:
-		return LimboConsole.usage(p_command_name)
+		return LimboConsole.group_cmd_usage(p_command_name.split(" "))
 
 
 static func cmd_log(p_num_lines: int = 10) -> Error:
