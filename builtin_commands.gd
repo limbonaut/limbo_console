@@ -49,9 +49,39 @@ static func register_commands() -> void:
 	}
 	
 	LimboConsole.register_command_group(group, group_descriptions, "command_group", "first sub-group!")
+	var game_commands = {
+		"player" = {
+			"add_item": add_item,
+		},
+		"npcs" = {
+			"status": npc_status
+		},
+		"start" = func(): LimboConsole.info("Starting game..."),
+		"stop" = func(force: bool): LimboConsole.info("Stopping game. Force: %s" % [force])
+	}
+	var game_descs = {
+		["game", "npcs"]: "Commands for the npcs",
+		["game", "player"]: "Commands for the player",
+		["game", "player", "add_item"]: "Adds an item to the player inventory",
+		["game", "npcs", "status"]: "status of an npc",
+		["game", "start"]: "starts the game",
+		["game", "stop"]: "stops the game"
+	}
+	
+	var game_autoccompletes = {
+		["game", "player", "add_item", 1]: func(): return ["sword", "shield", "food", "potion"] 
+	}
+	
+	LimboConsole.register_command_group(game_commands, game_descs, "game", "Commands for the game")
 	
 	LimboConsole.add_argument_autocomplete_source("help", 1, LimboConsole.get_command_names.bind(true))
 
+static func add_item(item: String, num: int):
+	LimboConsole.info("adding %s of %s" % [item, num])
+
+static func npc_status(id: String):
+	LimboConsole.info("NPC Status: %s" % [id])
+	pass
 
 static func _alias_usage() -> void:
 	LimboConsole.info("Usage: %s alias_name command_to_run [args...]" % [LimboConsole.format_name("alias")])
