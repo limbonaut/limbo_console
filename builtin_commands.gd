@@ -38,14 +38,14 @@ static func register_commands() -> void:
 		
 	# These can be ommitted
 	var group_descriptions = {
-		["subgroups_group"]: "the subgroups group!",
-		["subgroups_group", "sub_sub_sub"]: "omg 2 layers deep!",
-		["subgroups_group", "sub_sub_sub", "sub_sub_sub_command"]: "wow",
-		["subgroups_group", "sub_sub_sub", "sub_sub_sub_sub"]: "wow another??",
-		["subgroups_group", "sub_sub_sub", "sub_sub_sub_sub", "sub_sub_sub_sub_command"]: "OMG THIS IS THE LAST ONE I SWEAR",
-		["subgroups_group", "sub_sub_command"]: "the sub sub command",
-		["subgroups_group", "sub_sub_command2"]: "the sub sub command 2!!",
-		["sub_command"]: "The sub_command"
+		["command_group", "subgroups_group"]: "the subgroups group!",
+		["command_group", "subgroups_group", "sub_sub_sub"]: "omg 2 layers deep!",
+		["command_group", "subgroups_group", "sub_sub_sub", "sub_sub_sub_command"]: "wow",
+		["command_group", "subgroups_group", "sub_sub_sub", "sub_sub_sub_sub"]: "wow another??",
+		["command_group", "subgroups_group", "sub_sub_sub", "sub_sub_sub_sub", "sub_sub_sub_sub_command"]: "OMG THIS IS THE LAST ONE I SWEAR",
+		["command_group", "subgroups_group", "sub_sub_command"]: "the sub sub command",
+		["command_group", "subgroups_group", "sub_sub_command2"]: "the sub sub command 2!!",
+		["command_group", "sub_command"]: "The sub_command"
 	}
 	
 	LimboConsole.register_command_group(group, group_descriptions, "command_group", "first sub-group!")
