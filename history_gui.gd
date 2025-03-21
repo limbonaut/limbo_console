@@ -182,7 +182,7 @@ static func _fuzzy_match(query: String, items: Array) -> Array:
 			results.append({"item": item, "score": score})
 
 	# Sort results by highest score
-	results.sort_custom(func(a, b): return a.score < b.score)
+	results.sort_custom(func(a, b): return a.score > b.score)
 
 	return results.map(func(entry): return entry.item)
 
@@ -190,6 +190,11 @@ static func _fuzzy_match(query: String, items: Array) -> Array:
 static func _compute_match_score(query: String, target: String) -> int:
 	var score = 0
 	var query_index = 0
+
+	# Exact match. give unbeatable score
+	if query == target:
+		score = 99999
+		return score
 
 	for i in range(target.length()):
 		if query_index < query.length() and target[i] == query[query_index]:
