@@ -66,7 +66,7 @@ func _init() -> void:
 
 	_options = ConsoleOptions.new()
 	ConfigMapper.load_from_config(_options)
-	
+
 	_build_gui()
 	_init_theme()
 	_control.hide()
