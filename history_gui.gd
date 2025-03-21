@@ -16,7 +16,7 @@ var _command = "<placeholder>" # Needs default value so first search always proc
 var _command_history : Array # Command history to search throgh
 var _filter_results  : Array # Most recent results of performing a search for the _command in _command_history
 
-var _display_count = 9  # Number of history items to display in search [TODO: Make dynamic based on panel available space]
+var _display_count = 8  # Number of history items to display in search [TODO: Make dynamic based on panel available space]
 var _offset        = 0  # The offset _filter_results
 var _sub_index     = 0  # The highlight index 
 
