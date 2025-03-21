@@ -350,10 +350,10 @@ func add_group_argument_autocomplete_source(p_command: Array, p_argument: int, p
 	if not p_source.is_valid():
 		push_error("LimboConsole: Can't add autocomplete source: source callable is not valid")
 		return
-	# TODO: Validate the command exists that we are trying to register this for
-	#if not has_command(p_command):
-		#push_error("LimboConsole: Can't add autocomplete source: command doesn't exist: ", p_command)
-		#return
+	var cmd_callable = _get_command_from_command_group_array(p_command)
+	if !cmd_callable:
+		push_error("LimboConsole: Can't add autocomplete source: command doesn't exist: ", p_command)
+		return
 	if p_argument < 1 or p_argument > 5:
 		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
 		return
@@ -950,7 +950,7 @@ func _get_args_from_command_group_array(group_name_chain: Array):
 	
 ## Gets the callable from a registered group from an array of strings 
 ##  - an actual command should be the last index to this parameter
-## NOTE: WILL RETURN THE FIRST CALLABLE IT FIND IN THE CHAIN
+## NOTE: WILL RETURN THE FIRST CALLABLE IT FINDS IN THE CHAIN
 func _get_command_from_command_group_array(group_name_chain: Array):
 	var current_grouping: Dictionary = _commands
 	var result: Callable
