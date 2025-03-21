@@ -129,6 +129,9 @@ func handle_history_input(p_event: InputEvent):
 		_history_gui.increment_index()
 		_entry.grab_focus()
 		get_viewport().set_input_as_handled()
+	elif p_event.is_action_pressed("limbo_auto_complete_reverse"):
+		_reverse_autocomplete()
+		get_viewport().set_input_as_handled()
 	elif p_event.keycode == KEY_TAB and p_event.is_pressed():
 		_autocomplete()
 		get_viewport().set_input_as_handled()
