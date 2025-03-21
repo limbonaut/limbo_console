@@ -344,6 +344,22 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 	var key := [p_command, p_argument]
 	_argument_autocomplete_sources[key] = p_source
 
+## Registers a callable that should return an array of possible values for the given argument and command.
+## It will be used for autocompletion.
+func add_group_argument_autocomplete_source(p_command: Array, p_argument: int, p_source: Callable) -> void:
+	if not p_source.is_valid():
+		push_error("LimboConsole: Can't add autocomplete source: source callable is not valid")
+		return
+	# TODO: Validate the command exists that we are trying to register this for
+	#if not has_command(p_command):
+		#push_error("LimboConsole: Can't add autocomplete source: command doesn't exist: ", p_command)
+		#return
+	if p_argument < 1 or p_argument > 5:
+		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
+		return
+	var key := p_command
+	key.append(p_argument)
+	_argument_autocomplete_sources[key] = p_source
 
 ## Parses the command line and executes the command if it's valid.
 func execute_command(p_command_line: String, p_silent: bool = false) -> void:
@@ -418,12 +434,12 @@ func _print_command_group(argv: Array):
 	var cmd_or_group_names = []
 	# loop all keys at group
 	for item in command_group.keys():
-		var argv_no_root = argv.duplicate()
+		var argv_copy = argv.duplicate()
 		 # TODO: Why is item a string name that we have to cast?
-		argv_no_root.append(item as String)
+		argv_copy.append(item as String)
 		cmd_or_group_names.append(item)
-		if _command_descriptions.has(argv_no_root):
-				description_values.append(_command_descriptions.get(argv_no_root))
+		if _command_descriptions.has(argv_copy):
+				description_values.append(_command_descriptions.get(argv_copy))
 		if cmd_or_group_names.size() != description_values.size():
 			# if they arent the same size the user omitted a description
 			# add empty to the array so we can keep them the same size
