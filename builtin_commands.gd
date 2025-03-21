@@ -67,13 +67,12 @@ static func register_commands() -> void:
 		["game", "start"]: "starts the game",
 		["game", "stop"]: "stops the game"
 	}
-	
-	var game_autoccompletes = {
-		["game", "player", "add_item", 1]: func(): return ["sword", "shield", "food", "potion"] 
-	}
-	
+
+	# TODO: Support a validator func?
+	# TODO: Support default values?
 	LimboConsole.register_command_group(game_commands, game_descs, "game", "Commands for the game")
-	
+	LimboConsole.add_group_argument_autocomplete_source(["game", "player", "add_item"], 1, func(): return ["sword", "shield", "food", "potion"])
+	LimboConsole.add_group_argument_autocomplete_source(["game", "player", "add_item"], 2, func(): return [1,2,3,4,5,6,7,8,9])
 	LimboConsole.add_argument_autocomplete_source("help", 1, LimboConsole.get_command_names.bind(true))
 
 static func add_item(item: String, num: int):

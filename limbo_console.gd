@@ -410,7 +410,6 @@ func _print_command_group(argv: Array):
 	# TODO: Support 'root' command tree print aka (help) [aka no args]
 	var command_name: String = argv[0]
 	var group_description_display: String = _command_descriptions.get(argv, "")
-	# should be no args so we dont need to use _get_args_from_command_group_array
 	var items = argv.size()
 	# get the current 
 	var command_description_key = null
@@ -912,6 +911,26 @@ func _get_command_group_key_from_array(group_name_chain: Array[String]):
 	
 	return cmd_group_key
 	
+## gets the arguments ONLY as an array
+## does this by traversing each key until
+## a callable is found. Once a callable is found
+## every value after we know is an argument
+func _get_args_from_command_group_array(group_name_chain: Array):
+	var current_grouping: Dictionary = _commands
+	var result: Array = []
+	var start_building_args: bool = false
+	for item in group_name_chain:
+		if start_building_args:
+			result.append(item)
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			current_grouping = current_grouping[item]
+		elif current_grouping.has(item) \
+			and current_grouping.get(item) is Callable:
+			start_building_args = true
+			pass
+
+	return result
 	
 ## Gets the callable from a registered group from an array of strings 
 ##  - an actual command should be the last index to this parameter
@@ -952,9 +971,10 @@ func _update_autocomplete() -> void:
 		var current_line_val = _get_command_from_command_group_array(lines)
 		if not current_line_val:
 			current_line_val = _get_command_group_from_array(lines)
-		if current_line_val is Callable and last_arg != 0:			
-			#do args
-			var key := [command_name, last_arg]
+		if current_line_val is Callable and last_arg != 0:
+			var args_only = _get_args_from_command_group_array(argv)
+			var key = argv.slice(0, argv.size() - args_only.size()) as Array
+			key.append(last_arg - ((argv.size() - args_only.size())) + 1)
 			if _argument_autocomplete_sources.has(key):
 				var argument_values = _argument_autocomplete_sources[key].call()
 				if typeof(argument_values) < TYPE_ARRAY:
