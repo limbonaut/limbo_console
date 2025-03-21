@@ -143,7 +143,7 @@ func _input(p_event: InputEvent) -> void:
 		toggle_console()
 		get_viewport().set_input_as_handled()
 	# Check to see if the history gui should open
-	elif p_event.is_action_pressed("limbo_console_search_history"):
+	elif _control.visible and p_event.is_action_pressed("limbo_console_search_history"):
 		toggle_history()
 		get_viewport().set_input_as_handled()
 	elif _history_gui.visible and p_event is InputEventKey:

@@ -1,20 +1,37 @@
 extends Panel
 
-var _last_highlighted_label : RichTextLabel
-var _history_labels : Array[RichTextLabel] # 
-var _vbox : VBoxContainer
-var _scroll_container : ScrollContainer
-var _command_history : Array
-var _current_index = 0
-var _command = "<placeholder>"
-var _number_visible = 0
+################################################################################
+# Variables
+################################################################################
 
-# Public
+# Visual Elements
+const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
+var _last_highlighted_label : RichTextLabel
+var _history_labels 		: Array[RichTextLabel]
+var _vbox 					: VBoxContainer
+var _scroll_container 		: ScrollContainer
+
+# Indexing Results
+var _command = "<placeholder>" # Needs default value so first search always processes
+var _command_history : Array # Command history to search throgh
+var _filter_results  : Array # Most recent results of performing a search for the _command in _command_history
+
+var _display_count = 9  # Number of history items to display in search [TODO: Make dynamic based on panel available space]
+var _offset        = 0  # The offset _filter_results
+var _sub_index     = 0  # The highlight index 
+
+# Theme Colors [TODO: Flesh out theme colors]
+var _highlight_color : Color
+
+################################################################################
+# Public Functions
+################################################################################
+
+## Set visibility of history search
 func set_visibility(p_visible):
 	if not visible and p_visible:
-		_current_index = _number_visible
+		_offset = 0
 		_update_highlight()
-		_scroll_container.scroll_vertical = _scroll_container.get_v_scroll_bar().max_value
 	visible = p_visible
 
 ## Set the command history to search through
@@ -29,25 +46,37 @@ func add_command(command):
 
 ## Move cursor downwards
 func decrement_index():
+	var current_index = _offset + _sub_index
 	# Note that the list is going upwards so indexing is backwards
-	if _current_index + 1 > _number_visible:
+	if current_index - 1 < 0:
 		return
-	_current_index += 1
-	_update_highlight()
+		
+	if _sub_index == 0:
+		_offset -= 1
+		_update_scroll_list()
+	else:
+		_sub_index -= 1
+		_update_highlight()
 
 ## Move cursor upwards
 func increment_index():
+	var current_index = _offset + _sub_index
 	# Note that the list is going upwards so indexing is backwards
-	if _current_index - 1 < 0:
+	if current_index + 1 >= _filter_results.size():
 		return
-	_current_index -= 1
-	_update_highlight()
+	
+	if _sub_index >= _display_count - 1:
+		_offset += 1
+		_update_scroll_list()
+	else:
+		_sub_index += 1
+		_update_highlight()
 
 ## Get the current selected text
 func get_current_text():
 	var current_text = ""
 	if _history_labels.size() != 0:
-		current_text = _history_labels[_current_index].text
+		current_text = _filter_results[_get_current_index()]
 	return current_text
 
 ## Search for the command in the history
@@ -57,53 +86,34 @@ func search(command):
 		return
 	var filter_shorted = command.length() < _command.length()
 	_command = command
-		
-	var results = _fuzzy_match(command, _command_history)
-	if command.length() == 0:
-		results = _command_history
-	# Display sorted list of commands
-	var added_commands = []
-	var last_added_item = null
-	var vbox_children_count = _vbox.get_child_count()
-	for i in range(0, vbox_children_count):
-		var child = _vbox.get_child(i)
-		child.visible = false
-		if i < results.size():
-			child.visible = true
-			_current_index = i
-			child.text = results[i]
-			_number_visible = i
-		
+
+	# Empty string so show all results	
+	if _command.length() == 0:
+		_filter_results = _command_history
+		# Results are reversed since the list needs to go up instead of down
+		_filter_results.reverse()
+	else:
+		_filter_results = _fuzzy_match(command, _command_history)
+	
+	_reset_indexes()
+	_update_scroll_list()
 	_update_highlight()
-	if filter_shorted:
-		# Whenever the filter grows smaller, more results are available which
-		# can lead to instability when there are lots of results (i.e. 1000)
-		# This reults in some log before the scrollbar can update properly
-		# and this addresses this. 
-		# There's probably a better way to do this
-		# If you want to try, remove this callback and test out scroll
-		# behavior when 1000 entries are in the history
-		var callback = func():
-			await get_tree().create_timer(.05).timeout
-			_scroll_container.scroll_vertical = _scroll_container.get_v_scroll_bar().max_value
-		callback.call_deferred()
+	
 
-	_scroll_container.scroll_vertical = _scroll_container.get_v_scroll_bar().max_value
-
-# Variables
-const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
-
+################################################################################
 # Private Functions
+################################################################################
 
 func _init() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT) 
 	_init_theme()
+	
+	# [TODO: Get vertical scroll bar to work with history]
 	_scroll_container = ScrollContainer.new()
 	_scroll_container.anchor_left = 0.0   # Left edge at 0% of the parent
 	_scroll_container.anchor_top = 0.0    # Top edge at 0% of the parent
 	_scroll_container.anchor_right = 1.0  # Right edge at 100% of the parent
 	_scroll_container.anchor_bottom = 1.0 # Bottom edge at 100% of the parent
-	_scroll_container.follow_focus = true
 	add_child(_scroll_container)
 	
 	_vbox = VBoxContainer.new()
@@ -111,42 +121,56 @@ func _init() -> void:
 	_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll_container.add_child(_vbox)
 	
-	for i in range(0, 1000):
+	for i in range(0, _display_count):
 		var new_item = RichTextLabel.new()
 		new_item.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		new_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		new_item.fit_content = true
-		new_item.focus_mode = Control.FOCUS_ALL
 		new_item.scroll_active = false
 		_history_labels.append(new_item)
 		_vbox.add_child(new_item)
-	
+
+## Update the text in the scroll list to match current offset and filtered results
+func _update_scroll_list():
+	# Iterate through the number of displayed history items
+	for i in range(0, _display_count):
+		var filter_index = _offset + i
+
+		# Since the list goes upwards, need to index backwards
+		var label_index = _display_count - i - 1 
+
+		# Default empty
+		_history_labels[label_index].text = ""
+		
+		# Set non empty if in range
+		var index_in_range = filter_index < _filter_results.size()
+		if index_in_range:
+			_history_labels[label_index].text += _filter_results[filter_index]
+
+## Highlight the subindex
 func _update_highlight():
-	if _current_index < 0 or _command_history.size() == 0:
+	if _sub_index < 0 or _command_history.size() == 0:
 		return
 
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color("#515d70")
+	style.bg_color = _highlight_color
 	if is_instance_valid(_last_highlighted_label):
 		_last_highlighted_label.remove_theme_stylebox_override("normal")
 
-	_history_labels[_current_index].add_theme_stylebox_override("normal", style)
-	_last_highlighted_label = _history_labels[_current_index]
-	_history_labels[_current_index].grab_focus()
+	var highlight_index = _history_labels.size() - _sub_index -1
+	_history_labels[highlight_index].add_theme_stylebox_override("normal", style)
+	_last_highlighted_label = _history_labels[highlight_index]
 	_scroll_container.queue_sort()
 
+## Initialize the theme and color variables
 func _init_theme() -> void:
 	var _loaded_theme: Theme
-	_loaded_theme = load(THEME_DEFAULT).duplicate(true)
+	_loaded_theme = load(THEME_DEFAULT)
 
-	const CONSOLE_COLORS_THEME_TYPE := &"HistoryColors"
-	var _panel_background_color = _loaded_theme.get_color(&"panel_background", CONSOLE_COLORS_THEME_TYPE)
-	var _value = _loaded_theme.get_stylebox("panel", "Panel").duplicate(true)
-	_value.bg_color = _panel_background_color
-	theme = _loaded_theme
-	_loaded_theme.set_stylebox("panel", "Panel", _value)
+	const CONSOLE_COLORS_THEME_TYPE := &"ConsoleColors"
+	_highlight_color = _loaded_theme.get_color(&"history_highlight_color", CONSOLE_COLORS_THEME_TYPE)
 
-# Fuzzy search function similar to fzf
+## Fuzzy search function similar to fzf
 static func _fuzzy_match(query: String, items: Array) -> Array:
 	var results = []
 
@@ -160,7 +184,7 @@ static func _fuzzy_match(query: String, items: Array) -> Array:
 
 	return results.map(func(entry): return entry.item)
 
-# Scoring function for fuzzy matching
+## Scoring function for fuzzy matching
 static func _compute_match_score(query: String, target: String) -> int:
 	var score = 0
 	var query_index = 0
@@ -174,4 +198,14 @@ static func _compute_match_score(query: String, target: String) -> int:
 			if query_index == query.length():
 				break
 
-	return score if query_index == query.length() else 0  # Ensure full query matches
+ 	# Ensure full query matches
+	return score if query_index == query.length() else 0
+
+## Get the current index of the selected item
+func _get_current_index():
+	return _offset + _sub_index
+
+## Reset offset and sub_indexes to scroll list back to bottom
+func _reset_indexes():
+	_offset = 0
+	_sub_index = 0
