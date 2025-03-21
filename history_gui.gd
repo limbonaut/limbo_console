@@ -31,7 +31,9 @@ var _highlight_color : Color
 func set_visibility(p_visible):
 	if not visible and p_visible:
 		_offset = 0
+		_reset_indexes()
 		_update_highlight()
+		_update_scroll_list()
 	visible = p_visible
 
 ## Set the command history to search through
