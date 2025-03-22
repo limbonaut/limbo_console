@@ -406,18 +406,6 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		print_line("")
 	_silent = false
 
-func _rebuild_args_for_group_command(argv: Array):
-	var command_group = _commands.duplicate()
-	var args_rebuilt: Array = []
-	var rebuild_args: bool = false
-	for val in argv:
-		if command_group.get(val) is Callable:
-			rebuild_args = true
-		elif command_group.get(val) is Dictionary:
-			command_group = command_group.get(val)
-		if rebuild_args:
-			args_rebuilt.append(val)
-	return args_rebuilt
 
 func _print_command_group(argv: Array):
 	var group_description_display: String = _command_descriptions.get(argv, "")
@@ -1020,7 +1008,7 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 		_autocomplete_matches.append(suggest_command)
 
 
-# *** Command Groups
+# *** COMMAND GROUPS
 
 ## Gets the dictionary from a registered group from an array of strings
 ##	- the final parameter should end with the group that you want the 
@@ -1078,6 +1066,20 @@ func _get_command_from_array(group_name_chain: Array):
 			return null
 	return null
 
+## Rebuilds the argv array to remove prefixed text from
+## command groups that _parse_argv does not expect
+func _rebuild_args_for_group_command(argv: Array):
+	var command_group = _commands.duplicate()
+	var args_rebuilt: Array = []
+	var rebuild_args: bool = false
+	for val in argv:
+		if command_group.get(val) is Callable:
+			rebuild_args = true
+		elif command_group.get(val) is Dictionary:
+			command_group = command_group.get(val)
+		if rebuild_args:
+			args_rebuilt.append(val)
+	return args_rebuilt
 
 # *** MISC
 
