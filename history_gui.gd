@@ -203,14 +203,15 @@ func _reset_indexes():
 	_sub_index = 0
 
 func _ready():
-	connect("visibility_changed", calculate_display_count)
+	connect("visibility_changed", _calculate_display_count)
 	
-func calculate_display_count():
-	# process frame seems to not wait long enough for a lable to be populated
-	# this will rely on a command text never wrapping...
+func _calculate_display_count():
+	# The display count is finnicky to get right due to the label needing to be
+	# rendered so the fize can be determined. This gets the job done, it ain't 
+	# pretty, but it works
 	var max_y = size.y
 	_history_labels[0].queue_redraw()
-	await get_tree().process_frame
+	
 	var label_size_y = (_history_labels[0] as Control).size.y
 	var label_size_x = size.x
 	if label_size_y <= _largest_y:
