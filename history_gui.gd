@@ -8,6 +8,8 @@ extends Panel
 const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
 var _last_highlighted_label : Label
 var _history_labels 		: Array[Label]
+var _scroll_bar				: VScrollBar
+var _scroll_bar_width       = 12
 
 # Indexing Results
 var _command = "<placeholder>" # Needs default value so first search always processes
@@ -99,7 +101,6 @@ func search(command):
 	_reset_indexes()
 	_update_scroll_list()
 	_update_highlight()
-	
 
 ################################################################################
 # Private Functions
@@ -120,6 +121,9 @@ func _init() -> void:
 	new_item.text = "<Placeholder>"
 	add_child(new_item)
 	_history_labels.append(new_item)
+	
+	_scroll_bar = VScrollBar.new()
+	add_child(_scroll_bar)
 
 ## Update the text in the scroll list to match current offset and filtered results
 func _update_scroll_list():
@@ -134,6 +138,8 @@ func _update_scroll_list():
 		var index_in_range = filter_index < _filter_results.size()
 		if index_in_range:
 			_history_labels[i].text += _filter_results[filter_index]
+	
+	_update_scroll_bar()
 
 ## Highlight the subindex
 func _update_highlight():
@@ -216,7 +222,7 @@ func _calculate_display_count():
 	_history_labels[0].queue_redraw()
 	
 	var label_size_y = (_history_labels[0] as Control).size.y
-	var label_size_x = size.x
+	var label_size_x = size.x - _scroll_bar_width
 	if label_size_y <= _largest_y:
 		return
 	_largest_y = label_size_y
@@ -225,6 +231,9 @@ func _calculate_display_count():
 	if _display_count != display_count and display_count != 0 and display_count > _display_count:
 		_display_count = (display_count as int)
 	
+	# Update first label and then the remaining new labels
+	_history_labels[0].position.y = size.y - label_size_y
+	_history_labels[0].set_size(Vector2(label_size_x, label_size_y))
 	for i in range(0, _display_count -_history_labels.size()):
 		var new_item = Label.new()
 		new_item.size_flags_vertical = Control.SIZE_SHRINK_END
@@ -233,9 +242,19 @@ func _calculate_display_count():
 		new_item.set_size(Vector2(label_size_x, label_size_y))
 		_history_labels.append(new_item)
 		add_child(new_item)
-	_history_labels[0].position.y = size.y - label_size_y
-	_history_labels[0].set_size(Vector2(label_size_x, label_size_y))
+	
+	# Update the scroll bar to be positioned correctly
+	_scroll_bar.size.x = _scroll_bar_width
+	_scroll_bar.size.y = size.y
+	_scroll_bar.position.x = label_size_x
 	
 	_reset_indexes()
 	_update_highlight()
 	_update_scroll_list()
+
+func _update_scroll_bar():
+	if (_filter_results.size() > 0 and _display_count > 0):
+		var max_size = _filter_results.size()
+		_scroll_bar.max_value = max_size
+		_scroll_bar.page = _display_count
+		_scroll_bar.set_value_no_signal((max_size - _display_count) - _offset)
