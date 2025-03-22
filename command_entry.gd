@@ -80,7 +80,6 @@ func _draw() -> void:
 
 func submit_text() -> void:
 	text_submitted.emit(text)
-	clear()
 
 
 func _hide_scrollbars() -> void:
