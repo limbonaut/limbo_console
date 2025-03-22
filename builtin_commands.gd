@@ -65,7 +65,8 @@ static func register_commands() -> void:
 		["game", "player", "add_item"]: "Adds an item to the player inventory",
 		["game", "npcs", "status"]: "status of an npc",
 		["game", "start"]: "starts the game",
-		["game", "stop"]: "stops the game"
+		["game", "stop"]: "stops the game",
+		["game", "errrrrr"]: "hehe"
 	}
 
 	# TODO: Support a validator func?
@@ -209,11 +210,7 @@ static func cmd_fullscreen() -> void:
 
 static func cmd_help(p_command_name: String = "") -> Error:
 	if p_command_name.is_empty():
-		LimboConsole.print_line(LimboConsole.format_tip("Type %s to list all available commands." %
-				[LimboConsole.format_name("commands")]))
-		LimboConsole.print_line(LimboConsole.format_tip("Type %s to get more info about the command." %
-				[LimboConsole.format_name("help command")]))
-		return OK
+		return LimboConsole.group_cmd_usage([" "])
 	else:
 		return LimboConsole.group_cmd_usage(p_command_name.split(" "))
 
