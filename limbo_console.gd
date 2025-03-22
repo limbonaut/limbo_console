@@ -525,9 +525,7 @@ func usage(p_command: String) -> Error:
 	if not has_command(p_command):
 		error("Command not found: " + p_command)
 		return ERR_INVALID_PARAMETER
-
 	var callable: Callable = _commands[p_command]
-	
 	return cmd_usage(callable, [p_command])
 	
 func cmd_usage(callable: Callable, argv: Array):
@@ -910,78 +908,6 @@ func _reverse_autocomplete():
 		_update_autocomplete()
 		
 
-## Gets the dictionary from a registered group from an array of strings
-##	- the final parameter should end with the group that you want the 
-##		dictionary back for
-func _get_command_group_from_array(group_name_chain: Array) -> Dictionary:
-	var current_grouping: Dictionary = _commands
-	var count = 0
-	for item in group_name_chain:
-		if current_grouping.has(item) \
-			and current_grouping.get(item) is Dictionary:
-			count += 1
-			current_grouping = current_grouping[item]
-	# Return empty if we did not finish getting to the end of the chain
-	if current_grouping == _commands or count != group_name_chain.size():
-		current_grouping = {}
-	return current_grouping
-	
-## Gets the key from a registered group from an array of strings 
-##  - the final parameter should end with the group that you want the 
-## 		dictionary back for
-func _get_command_group_key_from_array(group_name_chain: Array[String]):
-	var current_grouping: Dictionary = _commands
-	var cmd_group_key: String = ""
-	for item in group_name_chain:
-		if current_grouping.has(item) \
-			and current_grouping.get(item) is Dictionary:
-			cmd_group_key = item
-			pass
-		pass
-	pass
-	
-	return cmd_group_key
-	
-## gets the arguments ONLY as an array
-## does this by traversing each key until
-## a callable is found. Once a callable is found
-## every value after we know is an argument
-func _get_args_from_command_group_array(group_name_chain: Array):
-	var current_grouping: Dictionary = _commands
-	var result: Array = []
-	var start_building_args: bool = false
-	for item in group_name_chain:
-		if start_building_args:
-			result.append(item)
-		if current_grouping.has(item) \
-			and current_grouping.get(item) is Dictionary:
-			current_grouping = current_grouping[item]
-		elif current_grouping.has(item) \
-			and current_grouping.get(item) is Callable:
-			start_building_args = true
-			pass
-
-	return result
-	
-## Gets the callable from a registered group from an array of strings 
-##  - an actual command should be the last index to this parameter
-## NOTE: WILL RETURN THE FIRST CALLABLE IT FINDS IN THE CHAIN
-func _get_command_from_array(group_name_chain: Array):
-	var current_grouping: Dictionary = _commands
-	var result: Callable
-	for item in group_name_chain:
-		if current_grouping.has(item) \
-			and current_grouping.get(item) is Dictionary:
-			current_grouping = current_grouping[item]
-		elif current_grouping.has(item) \
-			and current_grouping.get(item) is Callable:
-			return current_grouping.get(item)
-		else:
-			# if neither of the above are true we are requesting something
-			# that doesn't exist
-			return null
-	return null
-
 ## Updates autocomplete suggestions and hint based on user input.
 func _update_autocomplete() -> void:
 	var argv: PackedStringArray = _expand_alias(_parse_command_line(_entry.text))
@@ -1048,6 +974,7 @@ func _clear_autocomplete() -> void:
 
 ## Suggests corrections to user input based on similar command names.
 func _suggest_similar_command(p_argv: PackedStringArray) -> void:
+	# TODO: Support command groups for suggestions
 	if _silent:
 		return
 	var fuzzy_hit: String = Util.fuzzy_match_string(p_argv[0], 2, get_command_names(true))
@@ -1062,6 +989,7 @@ func _suggest_similar_command(p_argv: PackedStringArray) -> void:
 
 ## Suggests corrections to user input based on similar autocomplete argument values.
 func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
+	# TODO: Support command groups for suggestions
 	if _silent:
 		return
 	var argv: PackedStringArray
@@ -1090,6 +1018,65 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 		var suggest_command: String = " ".join(argv)
 		suggest_command = suggest_command.strip_edges()
 		_autocomplete_matches.append(suggest_command)
+
+
+# *** Command Groups
+
+## Gets the dictionary from a registered group from an array of strings
+##	- the final parameter should end with the group that you want the 
+##		dictionary back for
+func _get_command_group_from_array(group_name_chain: Array) -> Dictionary:
+	var current_grouping: Dictionary = _commands
+	var count = 0
+	for item in group_name_chain:
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			count += 1
+			current_grouping = current_grouping[item]
+	# Return empty if we did not finish getting to the end of the chain
+	if current_grouping == _commands or count != group_name_chain.size():
+		current_grouping = {}
+	return current_grouping
+	
+## gets the arguments ONLY as an array
+## does this by traversing each key until
+## a callable is found. Once a callable is found
+## every value after we know is an argument
+func _get_args_from_command_group_array(group_name_chain: Array):
+	var current_grouping: Dictionary = _commands
+	var result: Array = []
+	var start_building_args: bool = false
+	for item in group_name_chain:
+		if start_building_args:
+			result.append(item)
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			current_grouping = current_grouping[item]
+		elif current_grouping.has(item) \
+			and current_grouping.get(item) is Callable:
+			start_building_args = true
+			pass
+
+	return result
+	
+## Gets the callable from a registered group from an array of strings 
+##  - an actual command should be the last index to this parameter
+## NOTE: WILL RETURN THE FIRST CALLABLE IT FINDS IN THE CHAIN
+func _get_command_from_array(group_name_chain: Array):
+	var current_grouping: Dictionary = _commands
+	var result: Callable
+	for item in group_name_chain:
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			current_grouping = current_grouping[item]
+		elif current_grouping.has(item) \
+			and current_grouping.get(item) is Callable:
+			return current_grouping.get(item)
+		else:
+			# if neither of the above are true we are requesting something
+			# that doesn't exist
+			return null
+	return null
 
 
 # *** MISC
