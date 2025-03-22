@@ -214,11 +214,11 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 	if p_stdout:
 		print(Util.bbcode_strip(p_line))
 
+## Registers a command group into the command dictionary
 func register_command_group(p_dict: Dictionary, p_desc_dict: Dictionary, p_name: String = "", p_desc: String = "") -> void:
 	if not p_name.is_valid_ascii_identifier():
 		push_error("LimboConsole: Failed to register command: %s. A command must be a valid ascii identifier" % [p_name])
 		return
-	
 	if not _validate_command_group(p_dict):
 		push_error("LimboConsole: Failed to register command: %s. A " % [p_name])
 		return
@@ -377,13 +377,13 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		info("[color=%s][b]>[/b] %s[/color] %s" %
 				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
 
-	var cmd = _get_command_from_array(argv)
+	var cmd: Variant = _get_command_from_array(argv)
 	if cmd:
-		expanded_argv = _rebuild_args_for_group_command(argv)
+		expanded_argv = _rebuild_args_for_command_group(argv)
 	else:
-		var cmd_dict = _get_command_group_from_array(argv)
+		var cmd_dict: Dictionary = _get_command_group_from_array(argv)
 		if cmd_dict:
-			_print_command_group(argv)
+			_print_command_group_usage(argv)
 			return
 		else:
 			cmd = _commands.get(command_name)
@@ -448,7 +448,7 @@ func group_cmd_usage(p_argv: Array) -> Error:
 	var cmd_group = _get_command_group_from_array(p_argv)
 	if cmd_group or \
 		(p_argv.size() == 1 and p_argv[0] == " "):
-		_print_command_group(p_argv)
+		_print_command_group_usage(p_argv)
 		return OK
 	
 	error("LimboConsole: command or group not found")
@@ -471,9 +471,9 @@ func usage(p_command: String) -> Error:
 
 ## Prints the usage of the callable
 func cmd_usage(callable: Callable, argv: Array):
-	var argv_packed = PackedStringArray(argv)
-	var args_only = _get_args_from_command_group_array(argv)
-	var usage_key = argv.slice(0, argv.size() - args_only.size()) as Array
+	var argv_packed := PackedStringArray(argv)
+	var args_only: Array = _get_args_from_command_group_array(argv)
+	var usage_key: Array = argv.slice(0, argv.size() - args_only.size()) as Array
 	var usage_line: String = "Usage: %s" % [" ".join(usage_key)]
 	var method_info: Dictionary = Util.get_method_info(callable)
 	if method_info.is_empty():
@@ -503,14 +503,7 @@ func cmd_usage(callable: Callable, argv: Array):
 	print_line(usage_line)
 	var desc_line: String = ""
 	desc_line = _command_descriptions.get(usage_key, "")
-	# TODO: Discuss changing to this instead of the below
-	#desc_line = "Description: %s" % [desc_line]
-	#print_line(desc_line)
-	if not desc_line.is_empty():
-		desc_line[0] = desc_line[0].capitalize()
-		if desc_line.right(1) != ".":
-			desc_line += "."
-		print_line(desc_line)
+	print_sentence(desc_line)
 
 	if not arg_lines.is_empty():
 		print_line("Arguments")
@@ -519,7 +512,7 @@ func cmd_usage(callable: Callable, argv: Array):
 
 ## Prints a command groups sub commands and the root of sub groups
 ## and their descriptions
-func _print_command_group(argv: Array):
+func _print_command_group_usage(argv: Array) -> void:
 	var group_description_display: String = _command_descriptions.get(argv, "")
 	var command_group: Dictionary = {}
 	if argv.size() == 1 and argv[0] == " ":
@@ -527,13 +520,14 @@ func _print_command_group(argv: Array):
 		argv = []
 	else:
 		command_group = _get_command_group_from_array(argv)
-	var print_array = []
+	var print_array: Array[Dictionary] = []
 	# loop all keys at group
 	for cmd_name in command_group.keys():
 		var is_cmd: bool = false
 		var cmd_description: String = ""
-		var color = "#95e6cb"
-		var argv_copy = argv.duplicate()
+		# TODO: Pull color from theme / settings
+		var color: String = "#95e6cb"
+		var argv_copy: Array = argv.duplicate()
 		 # TODO: Why is item a string name that we have to cast?
 		argv_copy.append(cmd_name as String)
 		cmd_description = _command_descriptions.get(argv_copy, "")
@@ -548,7 +542,7 @@ func _print_command_group(argv: Array):
 	var tab_string: String = ""
 	print_array.sort_custom(func(a, b): return a["cmd_name"] < b["cmd_name"])
 	if argv.size() != 0:
-		print_line("Description: %s" % [group_description_display])
+		print_sentence("group_description_display")
 		tab_string = "\t"
 
 	print_line("Commands:")
@@ -559,6 +553,7 @@ func _print_command_group(argv: Array):
 														item["cmd_name"], \
 														item["description"] \
 													])
+
 
 ## Define an input variable for "eval" command.
 func add_eval_input(p_name: String, p_value) -> void:
@@ -905,12 +900,12 @@ func _update_autocomplete() -> void:
 		var line: String = _entry.text
 		var lines = argv.slice(0, argv.size() - 1)
 		# check if current full line leads to a callable or a dictionary
-		var current_line_val = _get_command_from_array(lines)
+		var current_line_val: Variant = _get_command_from_array(lines)
 		if not current_line_val:
 			current_line_val = _get_command_group_from_array(lines)
 		if current_line_val is Callable and last_arg != 0:
-			var args_only = _get_args_from_command_group_array(argv)
-			var key = argv.slice(0, argv.size() - args_only.size()) as Array
+			var args_only := _get_args_from_command_group_array(argv)
+			var key := argv.slice(0, argv.size() - args_only.size()) as Array
 			key.append(last_arg - ((argv.size() - args_only.size())) + 1)
 			if _argument_autocomplete_sources.has(key):
 				var argument_values = _argument_autocomplete_sources[key].call()
@@ -1006,27 +1001,30 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 
 # *** COMMAND GROUPS
 
-## Gets the dictionary from a registered group from an array of strings
-##	- the final parameter should end with the group that you want the 
-##		dictionary back for
+## Gets the command group dictionary from an array of strings
+## by traversing commands dictionary. If the entire array is not
+## traversed or no group is found then returns an empty dictionary.
 func _get_command_group_from_array(group_name_chain: Array) -> Dictionary:
 	var current_grouping: Dictionary = _commands
-	var count = 0
+	var count: int = 0
 	for item in group_name_chain:
 		if current_grouping.has(item) \
 			and current_grouping.get(item) is Dictionary:
 			count += 1
 			current_grouping = current_grouping[item]
+		elif current_grouping.has(item) \
+			and current_grouping.get(item) is Callable:
+				return {}
 	# Return empty if we did not finish getting to the end of the chain
 	if current_grouping == _commands or count != group_name_chain.size():
 		current_grouping = {}
 	return current_grouping
-	
-## gets the arguments ONLY as an array
-## does this by traversing each key until
-## a callable is found. Once a callable is found
-## every value after we know is an argument
-func _get_args_from_command_group_array(group_name_chain: Array):
+
+
+## Gets the arguments from an array of strings by traversing
+## commands dictionary until a callable is found. 
+## If a callable is found then we know every value after is an argument
+func _get_args_from_command_group_array(group_name_chain: Array) -> Array:
 	var current_grouping: Dictionary = _commands
 	var result: Array = []
 	var start_building_args: bool = false
@@ -1039,14 +1037,13 @@ func _get_args_from_command_group_array(group_name_chain: Array):
 		elif current_grouping.has(item) \
 			and current_grouping.get(item) is Callable:
 			start_building_args = true
-			pass
-
 	return result
-	
-## Gets the callable from a registered group from an array of strings 
-##  - an actual command should be the last index to this parameter
-## NOTE: WILL RETURN THE FIRST CALLABLE IT FINDS IN THE CHAIN
-func _get_command_from_array(group_name_chain: Array):
+
+
+## Gets the first callable from an array of strings by 
+## traversing commands dictionary until a callable is found.
+## If no callable is found returns null
+func _get_command_from_array(group_name_chain: Array) -> Variant:
 	var current_grouping: Dictionary = _commands
 	var result: Callable
 	for item in group_name_chain:
@@ -1062,9 +1059,10 @@ func _get_command_from_array(group_name_chain: Array):
 			return null
 	return null
 
+
 ## Rebuilds the argv array to remove prefixed text from
 ## command groups that _parse_argv does not expect
-func _rebuild_args_for_group_command(argv: Array):
+func _rebuild_args_for_command_group(argv: Array) -> Array:
 	var command_group = _commands.duplicate()
 	var args_rebuilt: Array = []
 	var rebuild_args: bool = false
@@ -1124,13 +1122,16 @@ func _validate_command_group(p_dict: Dictionary) -> bool:
 		var value = p_dict.get(key)
 		if value is Dictionary:
 			if not _validate_command_group(value):
-				push_error("LimboConsole: Failed to register subgroup: %s" % [key])
+				push_error("LimboConsole: Failed to register command group: %s" % [key])
 				ret = false
 		elif value is Callable:
 			if not _validate_callable(value):
 				ret = false
 	return ret
 
+
+## Validates that the description being registered has a command 
+## or a command group that is registered
 func _validate_group_description(cmd_chain: Array) -> bool:
 	var cmd_callable = _get_command_from_array(cmd_chain)
 	if cmd_callable:
@@ -1139,7 +1140,20 @@ func _validate_group_description(cmd_chain: Array) -> bool:
 	if cmd_group:
 		return true
 	return false
-	
+
+
+## Prints the string as a sentence to the console
+func print_sentence(desc_line: String):
+	# TODO: Discuss changing to this instead of the below
+	#desc_line = "Description: %s" % [desc_line]
+	#print_line(desc_line)
+	if not desc_line.is_empty():
+		desc_line[0] = desc_line[0].capitalize()
+		if desc_line.right(1) != ".":
+			desc_line += "."
+		print_line(desc_line)
+
+
 func _fill_entry(p_line: String) -> void:
 	_entry.text = p_line
 	_entry.set_caret_column(p_line.length())
