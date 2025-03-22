@@ -19,7 +19,7 @@ var enabled: bool = true:
 		enabled = value
 		set_process_input(enabled)
 		if not enabled and _control.visible:
-			_is_opening = false
+			_is_open = false
 			set_process(false)
 			_hide_console()
 
@@ -55,7 +55,7 @@ var _was_already_paused: bool = false
 
 var _open_t: float = 0.0
 var _open_speed: float = 5.0
-var _is_opening: bool = false
+var _is_open: bool = false
 
 
 func _init() -> void:
@@ -96,13 +96,14 @@ func _exit_tree() -> void:
 	if _options.persist_history:
 		_save_history()
 
+
 func _input(p_event: InputEvent) -> void:
 	if p_event.is_action_pressed("limbo_console_toggle"):
 		toggle_console()
 		get_viewport().set_input_as_handled()
 	elif _control.visible and p_event is InputEventKey and p_event.is_pressed():
 		var handled := true
-		if not _is_opening:
+		if not _is_open:
 			pass # Don't accept input while closing console.
 		elif p_event.keycode == KEY_UP:
 			_hist_idx += 1
@@ -128,13 +129,13 @@ func _input(p_event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	var done_sliding := false
-	if _is_opening:
+	if _is_open:
 		_open_t = move_toward(_open_t, 1.0, _open_speed * delta)
-		if _open_t == 1:
+		if _open_t == 1.0:
 			done_sliding = true
 	else: # We close faster than opening.
 		_open_t = move_toward(_open_t, 0.0, _open_speed * delta * 1.5)
-		if _open_t == 0:
+		if is_zero_approx(_open_t):
 			done_sliding = true
 
 	var eased := ease(_open_t, -1.75)
@@ -143,7 +144,7 @@ func _process(delta: float) -> void:
 
 	if done_sliding:
 		set_process(false)
-		if not _is_opening:
+		if not _is_open:
 			_hide_console()
 
 
@@ -152,24 +153,24 @@ func _process(delta: float) -> void:
 
 func open_console() -> void:
 	if enabled:
-		_is_opening = true
+		_is_open = true
 		set_process(true)
 		_show_console()
 
 
 func close_console() -> void:
 	if enabled:
-		_is_opening = false
+		_is_open = false
 		set_process(true)
 		# _hide_console() is called in _process()
 
 
-func is_visible() -> bool:
-	return _control.visible
+func is_open() -> bool:
+	return _is_open
 
 
 func toggle_console() -> void:
-	if _is_opening:
+	if _is_open:
 		close_console()
 	else:
 		open_console()
@@ -178,6 +179,15 @@ func toggle_console() -> void:
 ## Clears all messages in the console.
 func clear_console() -> void:
 	_output.text = ""
+
+
+## Erases the history that is persisted to the disk
+func erase_history() -> void:
+	_history = []
+	var file := FileAccess.open(LimboConsole.HISTORY_FILE, FileAccess.WRITE)
+	if file:
+		file.store_string("")
+		file.close()
 
 
 ## Prints an info message to the console and the output.
@@ -236,7 +246,7 @@ func register_command_group(p_dict: Dictionary, p_desc_dict: Dictionary, p_name:
 ## Registers a new command for the specified callable. [br]
 ## Optionally, you can provide a name and a description.
 func register_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
-	if !p_name.is_valid_ascii_identifier():
+	if p_name and not p_name.is_valid_ascii_identifier():
 		push_error("LimboConsole: Failed to register command: %s. A command must be a valid ascii identifier" % [p_name])
 		return
 	
@@ -338,6 +348,10 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 		return
 	if p_argument < 1 or p_argument > 5:
 		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
+		return
+	var argument_values = p_source.call()
+	if not _validate_autocomplete_result(argument_values, p_command):
+		push_error("LimboConsole: Failed to add argument autocomplete source: Callable must return an array.")
 		return
 	var key := [p_command, p_argument]
 	_argument_autocomplete_sources[key] = p_source
@@ -481,6 +495,7 @@ func cmd_usage(callable: Callable, argv: Array):
 		print_line("Usage: ???")
 
 	var arg_lines: String = ""
+	var values_lines: String = ""
 	var required_args: int = method_info.args.size() - method_info.default_args.size()
 
 	for i in range(method_info.args.size() - callable.get_bound_arguments_count()):
@@ -498,6 +513,15 @@ func cmd_usage(callable: Callable, argv: Array):
 				def_value = "\"" + def_value + "\""
 			def_spec = " = %s" % [def_value]
 		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
+		
+		var key := argv.slice(0, argv.size() - args_only.size()) as Array
+		key.append(i - ((argv.size() - args_only.size())) + 1)
+		if _argument_autocomplete_sources.has(key):
+			var auto_complete_callable: Callable = _argument_autocomplete_sources[key]
+			var arg_autocompletes = auto_complete_callable.call()
+			if len(arg_autocompletes) > 0:
+				var values: String = str(arg_autocompletes).replace("[", "").replace("]", "")
+				values_lines += " %s: %s\n" % [arg_name, values]
 	arg_lines = arg_lines.trim_suffix('\n')
 
 	print_line(usage_line)
@@ -508,6 +532,9 @@ func cmd_usage(callable: Callable, argv: Array):
 	if not arg_lines.is_empty():
 		print_line("Arguments")
 		print_line(arg_lines)
+	if not values_lines.is_empty():
+		print_line("Values:")
+		print_line(values_lines)
 	return OK
 
 ## Prints a command groups sub commands and the root of sub groups
@@ -909,9 +936,7 @@ func _update_autocomplete() -> void:
 			key.append(last_arg - ((argv.size() - args_only.size())) + 1)
 			if _argument_autocomplete_sources.has(key):
 				var argument_values = _argument_autocomplete_sources[key].call()
-				if typeof(argument_values) < TYPE_ARRAY:
-					push_error("LimboConsole: Argument autocomplete source returned unsupported type: ",
-							type_string(typeof(argument_values)), " command: ", command_name)
+				if not _validate_autocomplete_result(argument_values, command_name):
 					argument_values = []
 				var matches: PackedStringArray = []
 				for value in argument_values:
@@ -984,7 +1009,7 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 		var source: Callable = _argument_autocomplete_sources.get(key, Callable())
 		if source.is_valid():
 			accepted_values = source.call()
-		if accepted_values == null or typeof(accepted_values) < TYPE_ARRAY:
+		if accepted_values == null or not _validate_autocomplete_result(accepted_values, command_name):
 			continue
 		var fuzzy_hit: String = Util.fuzzy_match_string(p_argv[i], 2, accepted_values)
 		if not fuzzy_hit.is_empty():
@@ -1152,6 +1177,14 @@ func print_sentence(desc_line: String):
 		if desc_line.right(1) != ".":
 			desc_line += "."
 		print_line(desc_line)
+
+
+func _validate_autocomplete_result(p_result: Variant, p_command: String) -> bool:
+	if typeof(p_result) < TYPE_ARRAY:
+		push_error("LimboConsole: Argument autocomplete source failed: Expecting array but got: ",
+				type_string(typeof(p_result)), " command: ", p_command)
+		return false
+	return true
 
 
 func _fill_entry(p_line: String) -> void:

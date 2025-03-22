@@ -20,6 +20,7 @@ static func register_commands() -> void:
 	LimboConsole.register_command(cmd_quit, "quit", "exit the application")
 	LimboConsole.register_command(cmd_unalias, "unalias", "remove command alias")
 	LimboConsole.register_command(cmd_vsync, "vsync", "adjust V-Sync")
+	LimboConsole.register_command(LimboConsole.erase_history, "erase_history", "erases current history and persisted history")
 
 	var group = {
 		# subgroups in group
