@@ -76,7 +76,7 @@ func increment_index():
 ## Get the current selected text
 func get_current_text():
 	var current_text = ""
-	if _history_labels.size() != 0:
+	if _history_labels.size() != 0 and _filter_results.size() != 0:
 		current_text = _filter_results[_get_current_index()]
 	return current_text
 
@@ -145,6 +145,9 @@ func _update_highlight():
 	if is_instance_valid(_last_highlighted_label):
 		_last_highlighted_label.remove_theme_stylebox_override("normal")
 
+	if _filter_results.size() <= 0:
+		return
+		
 	var highlight_index = _sub_index
 	_history_labels[highlight_index].add_theme_stylebox_override("normal", style)
 	_last_highlighted_label = _history_labels[highlight_index]
