@@ -407,6 +407,118 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	_silent = false
 
 
+## Execute commands from file.
+func execute_script(p_file: String, p_silent: bool = true) -> void:
+	if FileAccess.file_exists(p_file):
+		if not p_silent:
+			LimboConsole.info("Executing " + p_file);
+		var fa := FileAccess.open(p_file, FileAccess.READ)
+		while not fa.eof_reached():
+			var line: String = fa.get_line()
+			LimboConsole.execute_command(line, p_silent)
+	else:
+		LimboConsole.error("File not found: " + p_file.trim_prefix("user://"))
+
+
+## Formats the tip text (hopefully useful ;).
+func format_tip(p_text: String) -> String:
+	return "[i][color=" + _output_debug_color.to_html() + "]" + p_text + "[/color][/i]"
+
+
+## Formats the command name for display.
+func format_name(p_name: String) -> String:
+	return "[color=" + _output_command_mention_color.to_html() + "]" + p_name + "[/color]"
+
+## Prints the help text of a group if it exists at the array of strings
+## otherwise if the array ends at a command will print the help
+## text of the command
+func group_cmd_usage(p_argv: Array) -> Error:
+	# TODO: Support aliasing for command groups
+	var command_or_group_name: String = p_argv[0]
+	if p_argv.size() == 1 \
+		and _commands.has(command_or_group_name) \
+		and _commands[command_or_group_name] is Callable:
+		return usage(command_or_group_name)
+		
+	var expanded_argv: Array = []
+	var cmd = _get_command_from_array(p_argv)
+	if cmd:
+		cmd_usage(cmd, p_argv)
+		return OK
+	var cmd_group = _get_command_group_from_array(p_argv)
+	if cmd_group or \
+		(p_argv.size() == 1 and p_argv[0] == " "):
+		_print_command_group(p_argv)
+		return OK
+	
+	error("LimboConsole: command or group not found")
+	return FAILED
+
+
+## Prints the usage text for the given command or group at the root
+func usage(p_command: String) -> Error:
+	if _aliases.has(p_command):
+		var alias_argv: PackedStringArray = get_alias_argv(p_command)
+		var formatted_cmd := "%s %s" % [format_name(alias_argv[0]), ' '.join(alias_argv.slice(1))]
+		print_line("Alias of: " + formatted_cmd)
+		p_command = alias_argv[0]
+	if not has_command(p_command):
+		error("Command not found: " + p_command)
+		return ERR_INVALID_PARAMETER
+	var callable: Callable = _commands[p_command]
+	return cmd_usage(callable, [p_command])
+
+
+## Prints the usage of the callable
+func cmd_usage(callable: Callable, argv: Array):
+	var argv_packed = PackedStringArray(argv)
+	var args_only = _get_args_from_command_group_array(argv)
+	var usage_key = argv.slice(0, argv.size() - args_only.size()) as Array
+	var usage_line: String = "Usage: %s" % [" ".join(usage_key)]
+	var method_info: Dictionary = Util.get_method_info(callable)
+	if method_info.is_empty():
+		error("Couldn't find method info for: " + callable.get_method())
+		print_line("Usage: ???")
+
+	var arg_lines: String = ""
+	var required_args: int = method_info.args.size() - method_info.default_args.size()
+
+	for i in range(method_info.args.size() - callable.get_bound_arguments_count()):
+		var arg_name: String = method_info.args[i].name.trim_prefix("p_")
+		var arg_type: int = method_info.args[i].type
+		if i < required_args:
+			usage_line += " " + arg_name
+		else:
+			usage_line += " [lb]" + arg_name + "[rb]"
+		var def_spec: String = ""
+		var num_required_args: int = method_info.args.size() - method_info.default_args.size()
+		if i >= num_required_args:
+			var def_value = method_info.default_args[i - num_required_args]
+			if typeof(def_value) == TYPE_STRING:
+				def_value = "\"" + def_value + "\""
+			def_spec = " = %s" % [def_value]
+		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
+	arg_lines = arg_lines.trim_suffix('\n')
+
+	print_line(usage_line)
+	var desc_line: String = ""
+	desc_line = _command_descriptions.get(usage_key, "")
+	# TODO: Discuss changing to this instead of the below
+	#desc_line = "Description: %s" % [desc_line]
+	#print_line(desc_line)
+	if not desc_line.is_empty():
+		desc_line[0] = desc_line[0].capitalize()
+		if desc_line.right(1) != ".":
+			desc_line += "."
+		print_line(desc_line)
+
+	if not arg_lines.is_empty():
+		print_line("Arguments")
+		print_line(arg_lines)
+	return OK
+
+## Prints a command groups sub commands and the root of sub groups
+## and their descriptions
 func _print_command_group(argv: Array):
 	var group_description_display: String = _command_descriptions.get(argv, "")
 	var command_group: Dictionary = {}
@@ -447,123 +559,6 @@ func _print_command_group(argv: Array):
 														item["cmd_name"], \
 														item["description"] \
 													])
-
-func _are_arrays_value_equal(arr1: Array, arr2: Array) -> bool:
-	if arr1.size() != arr2.size():
-		return false
-
-	for i in range(arr1.size()):
-		if arr1[i] != arr2[i]:
-			return false
-
-	return true
-
-## Execute commands from file.
-func execute_script(p_file: String, p_silent: bool = true) -> void:
-	if FileAccess.file_exists(p_file):
-		if not p_silent:
-			LimboConsole.info("Executing " + p_file);
-		var fa := FileAccess.open(p_file, FileAccess.READ)
-		while not fa.eof_reached():
-			var line: String = fa.get_line()
-			LimboConsole.execute_command(line, p_silent)
-	else:
-		LimboConsole.error("File not found: " + p_file.trim_prefix("user://"))
-
-
-## Formats the tip text (hopefully useful ;).
-func format_tip(p_text: String) -> String:
-	return "[i][color=" + _output_debug_color.to_html() + "]" + p_text + "[/color][/i]"
-
-
-## Formats the command name for display.
-func format_name(p_name: String) -> String:
-	return "[color=" + _output_command_mention_color.to_html() + "]" + p_name + "[/color]"
-
-## p_argv array of strings including the registered group name
-func group_cmd_usage(p_argv: Array) -> Error:
-	# TODO: Support aliasing for command groups
-	var command_or_group_name: String = p_argv[0]
-	if p_argv.size() == 1 \
-		and _commands.has(command_or_group_name) \
-		and _commands[command_or_group_name] is Callable:
-		return usage(command_or_group_name)
-		
-	var expanded_argv: Array = []
-	var cmd = _get_command_from_array(p_argv)
-	if cmd:
-		cmd_usage(cmd, p_argv)
-		return OK
-	var cmd_group = _get_command_group_from_array(p_argv)
-	if cmd_group or \
-		(p_argv.size() == 1 and p_argv[0] == " "):
-		_print_command_group(p_argv)
-		return OK
-	
-	error("LimboConsole: command or group not found")
-	return FAILED
-
-## Prints the help text for the given command.
-func usage(p_command: String) -> Error:
-	if _aliases.has(p_command):
-		var alias_argv: PackedStringArray = get_alias_argv(p_command)
-		var formatted_cmd := "%s %s" % [format_name(alias_argv[0]), ' '.join(alias_argv.slice(1))]
-		print_line("Alias of: " + formatted_cmd)
-		p_command = alias_argv[0]
-	if not has_command(p_command):
-		error("Command not found: " + p_command)
-		return ERR_INVALID_PARAMETER
-	var callable: Callable = _commands[p_command]
-	return cmd_usage(callable, [p_command])
-	
-func cmd_usage(callable: Callable, argv: Array):
-	var argv_packed = PackedStringArray(argv)
-	var args_only = _get_args_from_command_group_array(argv)
-	var usage_key = argv.slice(0, argv.size() - args_only.size()) as Array
-	var usage_line: String = "Usage: %s" % [" ".join(usage_key)]
-	var method_info: Dictionary = Util.get_method_info(callable)
-	if method_info.is_empty():
-		error("Couldn't find method info for: " + callable.get_method())
-		print_line("Usage: ???")
-
-	var arg_lines: String = ""
-	var required_args: int = method_info.args.size() - method_info.default_args.size()
-
-	for i in range(method_info.args.size() - callable.get_bound_arguments_count()):
-		var arg_name: String = method_info.args[i].name.trim_prefix("p_")
-		var arg_type: int = method_info.args[i].type
-		if i < required_args:
-			usage_line += " " + arg_name
-		else:
-			usage_line += " [lb]" + arg_name + "[rb]"
-		var def_spec: String = ""
-		var num_required_args: int = method_info.args.size() - method_info.default_args.size()
-		if i >= num_required_args:
-			var def_value = method_info.default_args[i - num_required_args]
-			if typeof(def_value) == TYPE_STRING:
-				def_value = "\"" + def_value + "\""
-			def_spec = " = %s" % [def_value]
-		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
-	arg_lines = arg_lines.trim_suffix('\n')
-
-	print_line(usage_line)
-
-	var desc_line: String = ""
-	
-	desc_line = _command_descriptions.get(usage_key, "")
-	# TODO: Discuss changing to this instead of the below
-	#desc_line = "Description: %s" % [desc_line]
-	#print_line(desc_line)
-	if not desc_line.is_empty():
-		desc_line[0] = desc_line[0].capitalize()
-		if desc_line.right(1) != ".":
-			desc_line += "."
-		print_line(desc_line)
-
-	if not arg_lines.is_empty():
-		print_line("Arguments")
-		print_line(arg_lines)
-	return OK
 
 ## Define an input variable for "eval" command.
 func add_eval_input(p_name: String, p_value) -> void:
@@ -885,7 +880,8 @@ func _autocomplete() -> void:
 		_autocomplete_matches.remove_at(0)
 		_autocomplete_matches.push_back(match_str)
 		_update_autocomplete()
-		
+
+
 func _reverse_autocomplete():
 	if not _autocomplete_matches.is_empty():
 		var match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
