@@ -310,12 +310,31 @@ func has_command_group(p_name: String) -> bool:
 			return true
 	return false
 
-func get_command_names(p_include_aliases: bool = false) -> PackedStringArray:
-	var names: PackedStringArray = _commands.keys()
+func get_command_names(p_include_aliases: bool = false, p_include_cmd_group_names: bool = false) -> PackedStringArray:
+	var names: PackedStringArray = PackedStringArray([])
 	if p_include_aliases:
 		names.append_array(_aliases.keys())
+	if p_include_cmd_group_names:
+		names = create_command_and_group_names(_commands, [], "")
+	else:
+		names = _commands.keys()
 	names.sort()
 	return names
+	
+## Iterates the entire _commands dictionary and appends
+## each full command group string and each full command execution
+## string to an array
+func create_command_and_group_names(p_dict: Dictionary, p_result: Array, parent_key: String = "") -> Array:
+	if p_result == null:
+		p_result = []
+	for k in p_dict.keys():
+		var new_key = parent_key + " " + k if parent_key != "" else k
+		if p_dict[k] is Dictionary:
+			p_result.append(new_key)
+			create_command_and_group_names(p_dict[k], p_result, new_key)
+		else:
+			p_result.append(new_key)
+	return p_result
 
 
 func get_command_description(p_name: String) -> String:
@@ -420,7 +439,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 			cmd = _commands.get(command_name)
 	
 	if not cmd or cmd is Dictionary:
-		error("Unknown command: " + command_name)
+		error("Unknown command: " + " ".join(expanded_argv))
 		_suggest_similar_command(expanded_argv)
 		_silent = false
 		return
@@ -995,15 +1014,12 @@ func _clear_autocomplete() -> void:
 
 ## Suggests corrections to user input based on similar command names.
 func _suggest_similar_command(p_argv: PackedStringArray) -> void:
-	# TODO: Support command groups for suggestions
 	if _silent:
 		return
-	var fuzzy_hit: String = Util.fuzzy_match_string(p_argv[0], 2, get_command_names(true))
+	var fuzzy_hit: String = Util.fuzzy_match_string(" ".join(p_argv), 2, get_command_names(true, true))
 	if fuzzy_hit:
 		info(format_tip("Did you mean %s? ([b]TAB[/b] to fill)" % [format_name(fuzzy_hit)]))
-		var argv := p_argv.duplicate()
-		argv[0] = fuzzy_hit
-		var suggest_command: String = " ".join(argv)
+		var suggest_command: String = fuzzy_hit
 		suggest_command = suggest_command.strip_edges()
 		_autocomplete_matches.append(suggest_command)
 
