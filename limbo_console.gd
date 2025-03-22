@@ -420,32 +420,45 @@ func _rebuild_args_for_group_command(argv: Array):
 	return args_rebuilt
 
 func _print_command_group(argv: Array):
-	# TODO: Support 'root' command tree print aka (help) [aka no args]
-	var command_name: String = argv[0]
 	var group_description_display: String = _command_descriptions.get(argv, "")
-	var items = argv.size()
-	# get the current 
-	var command_description_key = null
-	var command_group: Dictionary = _get_command_group_from_array(argv)
-	var description_values = []
-	var cmd_or_group_names = []
+	var command_group: Dictionary = {}
+	if argv.size() == 1 and argv[0] == " ":
+		command_group = _commands
+		argv = []
+	else:
+		command_group = _get_command_group_from_array(argv)
+	var print_array = []
 	# loop all keys at group
-	for item in command_group.keys():
+	for cmd_name in command_group.keys():
+		var is_cmd: bool = false
+		var cmd_description: String = ""
+		var color = "#95e6cb"
 		var argv_copy = argv.duplicate()
 		 # TODO: Why is item a string name that we have to cast?
-		argv_copy.append(item as String)
-		cmd_or_group_names.append(item)
-		if _command_descriptions.has(argv_copy):
-				description_values.append(_command_descriptions.get(argv_copy))
-		if cmd_or_group_names.size() != description_values.size():
-			# if they arent the same size the user omitted a description
-			# add empty to the array so we can keep them the same size
-			description_values.append([])
-	print_line("Description: %s\n" % [group_description_display])
+		argv_copy.append(cmd_name as String)
+		cmd_description = _command_descriptions.get(argv_copy, "")
+		var cmd = _get_command_from_command_group_array(argv_copy)
+		if not cmd:
+			color = "#95b"
+		print_array.append({
+			"color": color,
+			"cmd_name": cmd_name,
+			"description": cmd_description
+		})
+	var tab_string: String = ""
+	print_array.sort_custom(func(a, b): return a["cmd_name"] < b["cmd_name"])
+	if argv.size() != 0:
+		print_line("Description: %s" % [group_description_display])
+		tab_string = "\t"
+
 	print_line("Commands:")
-	for i in len(cmd_or_group_names):
+	for item in print_array:
 		#TODO: USE THE COLOR FROM THE THEME
-		print_line("\t[color=#95e6cb]%s[/color] -- %s" % [cmd_or_group_names[i], description_values[i]])
+		print_line("%s[color=%s]%s[/color] -- %s" % [tab_string, \
+														item["color"], \
+														item["cmd_name"], \
+														item["description"] \
+													])
 
 func _are_arrays_value_equal(arr1: Array, arr2: Array) -> bool:
 	if arr1.size() != arr2.size():
@@ -483,7 +496,9 @@ func format_name(p_name: String) -> String:
 func group_cmd_usage(p_argv: Array) -> Error:
 	# TODO: Support aliasing for command groups
 	var command_or_group_name: String = p_argv[0]
-	if p_argv.size() == 1 and _commands[command_or_group_name] is Callable:
+	if p_argv.size() == 1 \
+		and _commands.has(command_or_group_name) \
+		and _commands[command_or_group_name] is Callable:
 		return usage(command_or_group_name)
 		
 	var expanded_argv: Array = []
@@ -492,7 +507,8 @@ func group_cmd_usage(p_argv: Array) -> Error:
 		cmd_usage(cmd, p_argv)
 		return OK
 	var cmd_group = _get_command_group_from_array(p_argv)
-	if cmd_group:
+	if cmd_group or \
+		(p_argv.size() == 1 and p_argv[0] == " "):
 		_print_command_group(p_argv)
 		return OK
 	
@@ -549,14 +565,14 @@ func cmd_usage(callable: Callable, argv: Array):
 	var desc_line: String = ""
 	
 	desc_line = _command_descriptions.get(usage_key, "")
-	desc_line = "Description: %s" % [desc_line]
-	print_line(desc_line)
-	# TODO: what was this doing?
-	#if not desc_line.is_empty():
-		#desc_line[0] = desc_line[0].capitalize()
-		#if desc_line.right(1) != ".":
-			#desc_line += "."
-		#print_line(desc_line)
+	# TODO: Discuss changing to this instead of the below
+	#desc_line = "Description: %s" % [desc_line]
+	#print_line(desc_line)
+	if not desc_line.is_empty():
+		desc_line[0] = desc_line[0].capitalize()
+		if desc_line.right(1) != ".":
+			desc_line += "."
+		print_line(desc_line)
 
 	if not arg_lines.is_empty():
 		print_line("Arguments")
