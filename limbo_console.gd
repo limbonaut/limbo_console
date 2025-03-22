@@ -32,6 +32,7 @@ var _previous_gui_focus: Control
 # Theme colors
 var _output_command_color: Color
 var _output_command_mention_color: Color
+var _output_command_group_mention_color: Color
 var _output_error_color: Color
 var _output_warning_color: Color
 var _output_text_color: Color
@@ -40,6 +41,7 @@ var _entry_text_color: Color
 var _entry_hint_color: Color
 var _entry_command_found_color: Color
 var _entry_command_not_found_color: Color
+var _entry_command_group_found_color: Color
 
 var _options: ConsoleOptions
 var _commands: Dictionary # command_name => Callable
@@ -291,8 +293,22 @@ func unregister_command(p_func_or_name) -> void:
 
 ## Is a command or an alias registered by the given name.
 func has_command(p_name: String) -> bool:
-	return _commands.has(p_name)
+	var command_chain = p_name.split(" ")
+	if command_chain.size() > 1:
+		var cmd = _get_command_from_array(command_chain)
+		if cmd:
+			return true
+	return _commands.has(p_name) and _commands.get(p_name) is Callable
 
+func has_command_group(p_name: String) -> bool:
+	var command_chain = p_name.split(" ")
+	if command_chain.size() <= 0:
+		return false
+	else:
+		var cmd_group = _get_command_group_from_array(command_chain)
+		if cmd_group:
+			return true
+	return false
 
 func get_command_names(p_include_aliases: bool = false) -> PackedStringArray:
 	var names: PackedStringArray = _commands.keys()
@@ -373,6 +389,7 @@ func add_group_argument_autocomplete_source(p_command: Array, p_argument: int, p
 	key.append(p_argument)
 	_argument_autocomplete_sources[key] = p_source
 
+
 ## Parses the command line and executes the command if it's valid.
 func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	p_command_line = p_command_line.strip_edges()
@@ -407,7 +424,6 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		_suggest_similar_command(expanded_argv)
 		_silent = false
 		return
-		
 	var valid: bool = _parse_argv(expanded_argv, cmd, command_args)
 	if valid:
 		var err = cmd.callv(command_args)
@@ -486,7 +502,7 @@ func usage(p_command: String) -> Error:
 ## Prints the usage of the callable
 func cmd_usage(callable: Callable, argv: Array):
 	var argv_packed := PackedStringArray(argv)
-	var args_only: Array = _get_args_from_command_group_array(argv)
+	var args_only: Array = _get_args_from_array(argv)
 	var usage_key: Array = argv.slice(0, argv.size() - args_only.size()) as Array
 	var usage_line: String = "Usage: %s" % [" ".join(usage_key)]
 	var method_info: Dictionary = Util.get_method_info(callable)
@@ -552,15 +568,14 @@ func _print_command_group_usage(argv: Array) -> void:
 	for cmd_name in command_group.keys():
 		var is_cmd: bool = false
 		var cmd_description: String = ""
-		# TODO: Pull color from theme / settings
-		var color: String = "#95e6cb"
+		var color: String = _output_command_mention_color.to_html()
 		var argv_copy: Array = argv.duplicate()
 		 # TODO: Why is item a string name that we have to cast?
 		argv_copy.append(cmd_name as String)
 		cmd_description = _command_descriptions.get(argv_copy, "")
 		var cmd = _get_command_from_array(argv_copy)
 		if not cmd:
-			color = "#95b"
+			color = _output_command_group_mention_color.to_html()
 		print_array.append({
 			"color": color,
 			"cmd_name": cmd_name,
@@ -661,6 +676,7 @@ func _init_theme() -> void:
 	const CONSOLE_COLORS_THEME_TYPE := &"ConsoleColors"
 	_output_command_color = theme.get_color(&"output_command_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_command_mention_color = theme.get_color(&"output_command_mention_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_command_group_mention_color = theme.get_color(&"output_command_group_mention_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_text_color = theme.get_color(&"output_text_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_error_color = theme.get_color(&"output_error_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_warning_color = theme.get_color(&"output_warning_color", CONSOLE_COLORS_THEME_TYPE)
@@ -669,12 +685,13 @@ func _init_theme() -> void:
 	_entry_hint_color = theme.get_color(&"entry_hint_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_found_color = theme.get_color(&"entry_command_found_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_not_found_color = theme.get_color(&"entry_command_not_found_color", CONSOLE_COLORS_THEME_TYPE)
-
+	_entry_command_group_found_color = theme.get_color(&"entry_command_group_found_color", CONSOLE_COLORS_THEME_TYPE)
 	_output.add_theme_color_override(&"default_color", _output_text_color)
 	_entry.add_theme_color_override(&"font_color", _entry_text_color)
 	_entry.add_theme_color_override(&"hint_color", _entry_hint_color)
 	_entry.syntax_highlighter.command_found_color = _entry_command_found_color
 	_entry.syntax_highlighter.command_not_found_color = _entry_command_not_found_color
+	_entry.syntax_highlighter.command_group_found_color = _entry_command_group_found_color
 	_entry.syntax_highlighter.text_color = _entry_text_color
 
 
@@ -931,7 +948,7 @@ func _update_autocomplete() -> void:
 		if not current_line_val:
 			current_line_val = _get_command_group_from_array(lines)
 		if current_line_val is Callable and last_arg != 0:
-			var args_only := _get_args_from_command_group_array(argv)
+			var args_only := _get_args_from_array(argv)
 			var key := argv.slice(0, argv.size() - args_only.size()) as Array
 			key.append(last_arg - ((argv.size() - args_only.size())) + 1)
 			if _argument_autocomplete_sources.has(key):
@@ -1049,7 +1066,7 @@ func _get_command_group_from_array(group_name_chain: Array) -> Dictionary:
 ## Gets the arguments from an array of strings by traversing
 ## commands dictionary until a callable is found. 
 ## If a callable is found then we know every value after is an argument
-func _get_args_from_command_group_array(group_name_chain: Array) -> Array:
+func _get_args_from_array(group_name_chain: Array) -> Array:
 	var current_grouping: Dictionary = _commands
 	var result: Array = []
 	var start_building_args: bool = false
@@ -1140,7 +1157,7 @@ func _validate_callable(p_callable: Callable) -> bool:
 			ret = false
 	return ret
 
-
+## Validates a command group 
 func _validate_command_group(p_dict: Dictionary) -> bool:
 	var ret =  true
 	for key in p_dict.keys():
