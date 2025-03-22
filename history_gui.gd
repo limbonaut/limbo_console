@@ -6,19 +6,18 @@ extends Panel
 
 # Visual Elements
 const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
-var _last_highlighted_label : RichTextLabel
-var _history_labels 		: Array[RichTextLabel]
-var _vbox 					: VBoxContainer
-var _scroll_container 		: ScrollContainer
+var _last_highlighted_label : Label
+var _history_labels 		: Array[Label]
 
 # Indexing Results
 var _command = "<placeholder>" # Needs default value so first search always processes
 var _command_history : Array # Command history to search throgh
 var _filter_results  : Array # Most recent results of performing a search for the _command in _command_history
 
-var _display_count = 8  # Number of history items to display in search [TODO: Make dynamic based on panel available space]
-var _offset        = 0  # The offset _filter_results
-var _sub_index     = 0  # The highlight index 
+var _display_count = 0 # Number of history items to display in search [TODO: Make dynamic based on panel available space]
+var _offset        = 0 # The offset _filter_results
+var _sub_index     = 0 # The highlight index 
+var _largest_y     = 0 # Largest y_size for a history item
 
 # Theme Colors [TODO: Flesh out theme colors]
 var _highlight_color : Color
@@ -52,7 +51,7 @@ func decrement_index():
 	# Note that the list is going upwards so indexing is backwards
 	if current_index - 1 < 0:
 		return
-		
+
 	if _sub_index == 0:
 		_offset -= 1
 		_update_scroll_list()
@@ -66,7 +65,7 @@ func increment_index():
 	# Note that the list is going upwards so indexing is backwards
 	if current_index + 1 >= _filter_results.size():
 		return
-	
+		
 	if _sub_index >= _display_count - 1:
 		_offset += 1
 		_update_scroll_list()
@@ -108,29 +107,19 @@ func search(command):
 
 func _init() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT) 
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_init_theme()
 	
-	# [TODO: Get vertical scroll bar to work with history]
-	_scroll_container = ScrollContainer.new()
-	_scroll_container.anchor_left = 0.0   # Left edge at 0% of the parent
-	_scroll_container.anchor_top = 0.0    # Top edge at 0% of the parent
-	_scroll_container.anchor_right = 1.0  # Right edge at 100% of the parent
-	_scroll_container.anchor_bottom = 1.0 # Bottom edge at 100% of the parent
-	add_child(_scroll_container)
 	
-	_vbox = VBoxContainer.new()
-	_vbox.size_flags_vertical = Control.SIZE_EXPAND | Control.SIZE_SHRINK_END
-	_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_scroll_container.add_child(_vbox)
-	
-	for i in range(0, _display_count):
-		var new_item = RichTextLabel.new()
-		new_item.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		new_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		new_item.fit_content = true
-		new_item.scroll_active = false
-		_history_labels.append(new_item)
-		_vbox.add_child(new_item)
+	# Create first label, this is gets set to placeholder text to determine
+	# the display size once this node is _ready()
+	var new_item = Label.new()
+	new_item.size_flags_vertical = Control.SIZE_SHRINK_END
+	new_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	new_item.text = "<Placeholder>"
+	add_child(new_item)
+	_history_labels.append(new_item)
 
 ## Update the text in the scroll list to match current offset and filtered results
 func _update_scroll_list():
@@ -138,16 +127,13 @@ func _update_scroll_list():
 	for i in range(0, _display_count):
 		var filter_index = _offset + i
 
-		# Since the list goes upwards, need to index backwards
-		var label_index = _display_count - i - 1 
-
 		# Default empty
-		_history_labels[label_index].text = ""
+		_history_labels[i].text = ""
 		
 		# Set non empty if in range
 		var index_in_range = filter_index < _filter_results.size()
 		if index_in_range:
-			_history_labels[label_index].text += _filter_results[filter_index]
+			_history_labels[i].text += _filter_results[filter_index]
 
 ## Highlight the subindex
 func _update_highlight():
@@ -159,10 +145,9 @@ func _update_highlight():
 	if is_instance_valid(_last_highlighted_label):
 		_last_highlighted_label.remove_theme_stylebox_override("normal")
 
-	var highlight_index = _history_labels.size() - _sub_index -1
+	var highlight_index = _sub_index
 	_history_labels[highlight_index].add_theme_stylebox_override("normal", style)
 	_last_highlighted_label = _history_labels[highlight_index]
-	_scroll_container.queue_sort()
 
 ## Initialize the theme and color variables
 func _init_theme() -> void:
@@ -216,3 +201,37 @@ func _get_current_index():
 func _reset_indexes():
 	_offset = 0
 	_sub_index = 0
+
+func _ready():
+	connect("visibility_changed", calculate_display_count)
+	
+func calculate_display_count():
+	# process frame seems to not wait long enough for a lable to be populated
+	# this will rely on a command text never wrapping...
+	var max_y = size.y
+	_history_labels[0].queue_redraw()
+	await get_tree().process_frame
+	var label_size_y = (_history_labels[0] as Control).size.y
+	var label_size_x = size.x
+	if label_size_y <= _largest_y:
+		return
+	_largest_y = label_size_y
+	var display_count = (max_y as int / label_size_y as int)
+	
+	if _display_count != display_count and display_count != 0 and display_count > _display_count:
+		_display_count = (display_count as int)
+	
+	for i in range(0, _display_count -_history_labels.size()):
+		var new_item = Label.new()
+		new_item.size_flags_vertical = Control.SIZE_SHRINK_END
+		new_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		new_item.position.y = size.y - (i + 2) * label_size_y
+		new_item.set_size(Vector2(label_size_x, label_size_y))
+		_history_labels.append(new_item)
+		add_child(new_item)
+	_history_labels[0].position.y = size.y - label_size_y
+	_history_labels[0].set_size(Vector2(label_size_x, label_size_y))
+	
+	_reset_indexes()
+	_update_highlight()
+	_update_scroll_list()
