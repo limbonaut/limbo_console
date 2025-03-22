@@ -222,18 +222,16 @@ func register_command_group(p_dict: Dictionary, p_desc_dict: Dictionary, p_name:
 	if not _validate_command_group(p_dict):
 		push_error("LimboConsole: Failed to register command: %s. A " % [p_name])
 		return
-		
 	if _commands.has(p_name):
 		push_error("LimboConsole: Command already registered: " + p_name)
 		return
-	
 	_commands[p_name] = p_dict
 	_command_descriptions[[p_name]] = p_desc
 	for val in p_desc_dict.keys():
-		_command_descriptions.set(val, p_desc_dict[val])
-		
-	
-	pass
+		if _validate_group_description(val):
+			_command_descriptions.set(val, p_desc_dict[val])
+		else:
+			push_warning("LimboConsole: Unable to register description for: %s" % [val])
 
 ## Registers a new command for the specified callable. [br]
 ## Optionally, you can provide a name and a description.
@@ -900,14 +898,14 @@ func _reverse_autocomplete():
 ##		dictionary back for
 func _get_command_group_from_array(group_name_chain: Array) -> Dictionary:
 	var current_grouping: Dictionary = _commands
+	var count = 0
 	for item in group_name_chain:
 		if current_grouping.has(item) \
 			and current_grouping.get(item) is Dictionary:
+			count += 1
 			current_grouping = current_grouping[item]
-			pass
-		pass
-	pass
-	if current_grouping == _commands:
+	# Return empty if we did not finish getting to the end of the chain
+	if current_grouping == _commands or count != group_name_chain.size():
 		current_grouping = {}
 	return current_grouping
 	
@@ -1135,9 +1133,13 @@ func _validate_command_group(p_dict: Dictionary) -> bool:
 				ret = false
 	return ret
 
-
-func _validate_command_group_descriptions(p_dict: Dictionary) -> bool:
-	# TODO: Implement
+func _validate_group_description(cmd_chain: Array) -> bool:
+	var cmd_callable = _get_command_from_command_group_array(cmd_chain)
+	if cmd_callable:
+		return true
+	var cmd_group = _get_command_group_from_array(cmd_chain)
+	if cmd_group:
+		return true
 	return false
 	
 func _fill_entry(p_line: String) -> void:
