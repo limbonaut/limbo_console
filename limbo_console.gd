@@ -348,7 +348,7 @@ func add_group_argument_autocomplete_source(p_command: Array, p_argument: int, p
 	if not p_source.is_valid():
 		push_error("LimboConsole: Can't add autocomplete source: source callable is not valid")
 		return
-	var cmd_callable = _get_command_from_command_group_array(p_command)
+	var cmd_callable = _get_command_from_array(p_command)
 	if !cmd_callable:
 		push_error("LimboConsole: Can't add autocomplete source: command doesn't exist: ", p_command)
 		return
@@ -377,7 +377,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		info("[color=%s][b]>[/b] %s[/color] %s" %
 				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
 
-	var cmd = _get_command_from_command_group_array(argv)
+	var cmd = _get_command_from_array(argv)
 	if cmd:
 		expanded_argv = _rebuild_args_for_group_command(argv)
 	else:
@@ -437,7 +437,7 @@ func _print_command_group(argv: Array):
 		 # TODO: Why is item a string name that we have to cast?
 		argv_copy.append(cmd_name as String)
 		cmd_description = _command_descriptions.get(argv_copy, "")
-		var cmd = _get_command_from_command_group_array(argv_copy)
+		var cmd = _get_command_from_array(argv_copy)
 		if not cmd:
 			color = "#95b"
 		print_array.append({
@@ -502,7 +502,7 @@ func group_cmd_usage(p_argv: Array) -> Error:
 		return usage(command_or_group_name)
 		
 	var expanded_argv: Array = []
-	var cmd = _get_command_from_command_group_array(p_argv)
+	var cmd = _get_command_from_array(p_argv)
 	if cmd:
 		cmd_usage(cmd, p_argv)
 		return OK
@@ -966,7 +966,7 @@ func _get_args_from_command_group_array(group_name_chain: Array):
 ## Gets the callable from a registered group from an array of strings 
 ##  - an actual command should be the last index to this parameter
 ## NOTE: WILL RETURN THE FIRST CALLABLE IT FINDS IN THE CHAIN
-func _get_command_from_command_group_array(group_name_chain: Array):
+func _get_command_from_array(group_name_chain: Array):
 	var current_grouping: Dictionary = _commands
 	var result: Callable
 	for item in group_name_chain:
@@ -995,7 +995,7 @@ func _update_autocomplete() -> void:
 		var line: String = _entry.text
 		var lines = argv.slice(0, argv.size() - 1)
 		# check if current full line leads to a callable or a dictionary
-		var current_line_val = _get_command_from_command_group_array(lines)
+		var current_line_val = _get_command_from_array(lines)
 		if not current_line_val:
 			current_line_val = _get_command_group_from_array(lines)
 		if current_line_val is Callable and last_arg != 0:
@@ -1147,7 +1147,7 @@ func _validate_command_group(p_dict: Dictionary) -> bool:
 	return ret
 
 func _validate_group_description(cmd_chain: Array) -> bool:
-	var cmd_callable = _get_command_from_command_group_array(cmd_chain)
+	var cmd_callable = _get_command_from_array(cmd_chain)
 	if cmd_callable:
 		return true
 	var cmd_group = _get_command_group_from_array(cmd_chain)
