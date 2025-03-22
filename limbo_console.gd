@@ -377,12 +377,6 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		info("[color=%s][b]>[/b] %s[/color] %s" %
 				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
 
-	if not has_command(command_name):
-		error("Unknown command: " + command_name)
-		_suggest_similar_command(expanded_argv)
-		_silent = false
-		return
-		
 	var cmd = _get_command_from_command_group_array(argv)
 	if cmd:
 		expanded_argv = _rebuild_args_for_group_command(argv)
@@ -394,6 +388,12 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		else:
 			cmd = _commands.get(command_name)
 	
+	if not cmd or cmd is Dictionary:
+		error("Unknown command: " + command_name)
+		_suggest_similar_command(expanded_argv)
+		_silent = false
+		return
+		
 	var valid: bool = _parse_argv(expanded_argv, cmd, command_args)
 	if valid:
 		var err = cmd.callv(command_args)
@@ -405,7 +405,6 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	if _options.sparse_mode:
 		print_line("")
 	_silent = false
-
 
 func _rebuild_args_for_group_command(argv: Array):
 	var command_group = _commands.duplicate()
@@ -515,10 +514,11 @@ func usage(p_command: String) -> Error:
 	
 	return cmd_usage(callable, [p_command])
 	
-#TODO: usage needs to put [] around group args
 func cmd_usage(callable: Callable, argv: Array):
 	var argv_packed = PackedStringArray(argv)
-	var usage_line: String = "Usage: %s" % [" ".join(argv_packed)]
+	var args_only = _get_args_from_command_group_array(argv)
+	var usage_key = argv.slice(0, argv.size() - args_only.size()) as Array
+	var usage_line: String = "Usage: %s" % [" ".join(usage_key)]
 	var method_info: Dictionary = Util.get_method_info(callable)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + callable.get_method())
@@ -547,7 +547,8 @@ func cmd_usage(callable: Callable, argv: Array):
 	print_line(usage_line)
 
 	var desc_line: String = ""
-	desc_line = _command_descriptions.get(argv, "")
+	
+	desc_line = _command_descriptions.get(usage_key, "")
 	desc_line = "Description: %s" % [desc_line]
 	print_line(desc_line)
 	# TODO: what was this doing?
@@ -959,14 +960,10 @@ func _get_command_from_command_group_array(group_name_chain: Array):
 		elif current_grouping.has(item) \
 			and current_grouping.get(item) is Callable:
 			return current_grouping.get(item)
-			pass
 		else:
 			# if neither of the above are true we are requesting something
 			# that doesn't exist
 			return null
-		pass
-	pass
-	
 	return null
 
 ## Updates autocomplete suggestions and hint based on user input.
