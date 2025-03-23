@@ -58,7 +58,10 @@ static func register_commands() -> void:
 			"status": npc_status
 		},
 		"start" = func(): LimboConsole.info("Starting game..."),
-		"stop" = func(force: bool): LimboConsole.info("Stopping game. Force: %s" % [force])
+		"stop" = func(force: bool): 
+						LimboConsole.info("Stopping game. Force: %s" % [force])
+						if force is bool:
+							return FAILED
 	}
 	var game_descs = {
 		["game", "npcs"]: "Commands for the npcs",
@@ -75,9 +78,14 @@ static func register_commands() -> void:
 	LimboConsole.register_command_group(game_commands, game_descs, "game", "Commands for the game")
 	LimboConsole.add_group_argument_autocomplete_source(["game", "player", "add_item"], 1, func(): return ["sword", "shield", "food", "potion"])
 	LimboConsole.add_group_argument_autocomplete_source(["game", "player", "add_item"], 2, func(): return [1,2,3,4,5,6,7,8,9])
+	LimboConsole.add_group_argument_autocomplete_source(["game", "npcs", "status"], 1, func(): return ["active", "inactive"])
 	LimboConsole.add_argument_autocomplete_source("help", 1, LimboConsole.get_command_names.bind(true))
 
 static func add_item(item: String, num: int):
+	# without this the auto-complete will not attempt to suggest values
+	# see help for an example that exists already
+	if item not in ["sword", "shield", "food", "potion"]:
+		return FAILED
 	LimboConsole.info("adding %s of %s" % [item, num])
 
 static func npc_status(id: String):

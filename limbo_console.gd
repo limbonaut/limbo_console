@@ -448,7 +448,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		var err = cmd.callv(command_args)
 		var failed: bool = typeof(err) == TYPE_INT and err > 0
 		if failed:
-			_suggest_argument_corrections(expanded_argv)
+			_suggest_argument_corrections(argv)
 	else:
 		group_cmd_usage(argv)
 	if _options.sparse_mode:
@@ -1026,30 +1026,32 @@ func _suggest_similar_command(p_argv: PackedStringArray) -> void:
 
 ## Suggests corrections to user input based on similar autocomplete argument values.
 func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
-	# TODO: Support command groups for suggestions
 	if _silent:
 		return
-	var argv: PackedStringArray
-	var command_name: String = p_argv[0]
-	command_name = get_alias_argv(command_name)[0]
-	var corrected := false
-
+	var args_only: Array = _get_args_from_array(p_argv)
+	var usage_key: Array = p_argv.slice(0, p_argv.size() - args_only.size())
+	var argv: PackedStringArray = PackedStringArray(usage_key)
 	argv.resize(p_argv.size())
-	argv[0] = command_name
-	for i in range(1, p_argv.size()):
+	var command_name: String = p_argv[0]
+	#TODO: Support alias here
+	var corrected := false
+	for i in range(args_only.size()):
 		var accepted_values = []
-		var key := [command_name, i]
+		var key = usage_key.duplicate()
+		var arg_autocomplete_index: int = i + 1
+		key.append(arg_autocomplete_index)
 		var source: Callable = _argument_autocomplete_sources.get(key, Callable())
 		if source.is_valid():
 			accepted_values = source.call()
+		# TODO: Support validation for autocomplete of command groups
 		if accepted_values == null or not _validate_autocomplete_result(accepted_values, command_name):
 			continue
-		var fuzzy_hit: String = Util.fuzzy_match_string(p_argv[i], 2, accepted_values)
+		var fuzzy_hit: String = Util.fuzzy_match_string(args_only[i], 2, accepted_values)
 		if not fuzzy_hit.is_empty():
-			argv[i] = fuzzy_hit
+			argv[i + usage_key.size()] = fuzzy_hit
 			corrected = true
 		else:
-			argv[i] = p_argv[i]
+			argv[i] = p_argv[i + usage_key.size()]
 	if corrected:
 		info(format_tip("Did you mean \"%s %s\"? ([b]TAB[/b] to fill)" % [format_name(command_name), " ".join(argv.slice(1))]))
 		var suggest_command: String = " ".join(argv)
