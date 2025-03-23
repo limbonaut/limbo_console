@@ -19,7 +19,6 @@ var _filter_results  : Array # Most recent results of performing a search for th
 var _display_count = 0 # Number of history items to display in search
 var _offset        = 0 # The offset _filter_results
 var _sub_index     = 0 # The highlight index 
-var _largest_y     = 0 # Largest y_size for a history item
 
 # Theme Colors [TODO: Flesh out theme colors]
 var _highlight_color : Color
@@ -49,8 +48,7 @@ func add_command(command):
 
 ## Move cursor downwards
 func decrement_index():
-	var current_index = _offset + _sub_index
-	# Note that the list is going upwards so indexing is backwards
+	var current_index = _get_current_index()
 	if current_index - 1 < 0:
 		return
 
@@ -63,8 +61,7 @@ func decrement_index():
 
 ## Move cursor upwards
 func increment_index():
-	var current_index = _offset + _sub_index
-	# Note that the list is going upwards so indexing is backwards
+	var current_index = _get_current_index()
 	if current_index + 1 >= _filter_results.size():
 		return
 		
@@ -87,12 +84,12 @@ func search(command):
 	# Don't process if we used the same command before
 	if command == _command:
 		return
-	var filter_shorted = command.length() < _command.length()
 	_command = command
 
 	# Empty string so show all results	
 	if _command.length() == 0:
 		_filter_results = _command_history
+		
 		# Results are reversed since the list needs to go up instead of down
 		_filter_results.reverse()
 	else:
@@ -212,6 +209,7 @@ func _reset_indexes():
 	_sub_index = 0
 
 func _ready():
+	# The sizing of the labels is dependant on visiblity
 	connect("visibility_changed", _calculate_display_count)
 	
 func _calculate_display_count():
@@ -219,15 +217,11 @@ func _calculate_display_count():
 	# rendered so the fize can be determined. This gets the job done, it ain't 
 	# pretty, but it works
 	var max_y = size.y
-	_history_labels[0].queue_redraw()
 	
 	var label_size_y = (_history_labels[0] as Control).size.y
 	var label_size_x = size.x - _scroll_bar_width
-	if label_size_y <= _largest_y:
-		return
-	_largest_y = label_size_y
-	var display_count = (max_y as int / label_size_y as int)
 	
+	var display_count = (max_y as int / label_size_y as int)
 	if _display_count != display_count and display_count != 0 and display_count > _display_count:
 		_display_count = (display_count as int)
 	
