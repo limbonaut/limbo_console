@@ -484,9 +484,7 @@ func format_name(p_name: String) -> String:
 ## otherwise if the array ends at a command will print the help
 ## text of the command
 func group_cmd_usage(p_argv: Array) -> Error:
-	# TODO: Support aliasing? We should be able to change every arg into
-	# an alias if it exists and unwrap aliases with aliases
-	p_argv = get_alias_argv(p_argv[0])
+	p_argv = _expand_alias(p_argv)
 	var command_or_group_name: String = p_argv[0]
 	if p_argv.size() == 1 \
 		and _commands.has(command_or_group_name) \
@@ -813,6 +811,10 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 
 ## Substitutes alias with its real command in argv.
 func _expand_alias(p_argv: PackedStringArray) -> PackedStringArray:
+	# TODO: support alias replacing recursively
+	# should be able to continiously unwrap typed in text?
+	# to get the full string out. 
+	# I don't think supporting suggestions should be a thing for this
 	if p_argv.size() > 0 and _aliases.has(p_argv[0]):
 		return _aliases.get(p_argv[0]) + p_argv.slice(1)
 	else:
