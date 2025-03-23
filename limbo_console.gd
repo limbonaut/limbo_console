@@ -290,9 +290,6 @@ func get_command_description(p_name: String) -> String:
 
 ## Registers an alias for a command (may include arguments).
 func add_alias(p_alias: String, p_command_to_run: String) -> void:
-	if not p_alias.is_valid_identifier():
-		error("Invalid alias identifier.")
-		return
 	# It should be possible to override commands and existing aliases.
 	# It should be possible to create aliases for commands that are not yet registered,
 	# because some commands may be registered by local-to-scene scripts.
