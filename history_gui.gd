@@ -6,10 +6,10 @@ extends Panel
 
 # Visual Elements
 const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
-var _last_highlighted_label : Label
+var _last_highlighted_label	: Label
 var _history_labels 		: Array[Label]
 var _scroll_bar				: VScrollBar
-var _scroll_bar_width       = 12
+var _scroll_bar_width		= 12
 
 # Indexing Results
 var _command = "<placeholder>" # Needs default value so first search always processes
