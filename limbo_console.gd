@@ -1,3 +1,5 @@
+# TODO: Support unregistering command groups and their descriptions / auto completes
+# needs to support unregistering by array and unregistering by callable
 extends CanvasLayer
 ## LimboConsole
 
