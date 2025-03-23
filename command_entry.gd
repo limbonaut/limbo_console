@@ -108,6 +108,7 @@ class CommandEntryHighlighter extends SyntaxHighlighter:
 				continue
 			current_chain.append(item)
 			var chain_as_string = " ".join(current_chain)
+			# TODO: Should aliases be colored differently?
 			if LimboConsole.has_command(chain_as_string) \
 				or LimboConsole.has_alias(chain_as_string):
 				color_dict.set(text_start, {"color": command_found_color})

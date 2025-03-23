@@ -1,5 +1,3 @@
-# TODO: Support unregistering command groups and their descriptions / auto completes
-# needs to support unregistering by array and unregistering by callable
 extends CanvasLayer
 ## LimboConsole
 
@@ -228,6 +226,24 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 	if p_stdout:
 		print(Util.bbcode_strip(p_line))
 
+func print_command_output(argv: PackedStringArray):
+	var colored_line_pieces = PackedStringArray([])
+	var current_chain = []
+	for item in argv:
+		current_chain.append(item)
+		var chain_as_string = " ".join(current_chain)
+		if LimboConsole.has_command(chain_as_string) \
+			or LimboConsole.has_alias(chain_as_string):
+				# TODO: Should aliases have their own color?
+				colored_line_pieces.append("[color=%s]%s[/color]" % [_output_command_color.to_html(), item])
+		elif LimboConsole.has_command_group(chain_as_string):
+			colored_line_pieces.append("[color=%s]%s[/color]" % [_output_command_group_mention_color.to_html(), item])
+		else:
+			colored_line_pieces.append("[color=%s]%s[/color]" % [_output_text_color.to_html(), item])
+	var output_command_string = " ".join(colored_line_pieces)
+	info("[color=%s][b]>[/b][/color] %s" %
+			[_output_command_color.to_html(), output_command_string])
+
 ## Registers a command group into the command dictionary
 func register_command_group(p_dict: Dictionary, p_desc_dict: Dictionary, p_name: String = "", p_desc: String = "") -> void:
 	if not p_name.is_valid_ascii_identifier():
@@ -336,17 +352,20 @@ func unregister_command_group(p_func_or_array) -> void:
 func has_command(p_name: String) -> bool:
 	var command_chain = p_name.split(" ")
 	if command_chain.size() > 1:
-		var cmd = _get_command_from_array(command_chain)
-		if cmd:
+		var args_only: Array = _get_args_from_array(command_chain)
+		var usage_key: Array = command_chain.slice(0, command_chain.size() - args_only.size())
+		var cmd = _get_command_from_array(usage_key)
+		if cmd and usage_key.size() == command_chain.size():
 			return true
 	return _commands.has(p_name) and _commands.get(p_name) is Callable
 
+# TODO: This does not recognize empty command groups -- it should
 func has_command_group(p_name: String) -> bool:
 	var command_chain = p_name.split(" ")
 	if command_chain.size() <= 0:
 		return false
 	else:
-		var cmd_group = _get_command_group_from_array(command_chain)
+		var cmd_group = _has_command_group_from_array(command_chain)
 		if cmd_group:
 			return true
 	return false
@@ -465,8 +484,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	if not p_silent:
 		var history_line: String = " ".join(argv)
 		_push_history(history_line)
-		info("[color=%s][b]>[/b] %s[/color] %s" %
-				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
+		print_command_output(argv)
 
 	var cmd: Variant = _get_command_from_array(expanded_argv)
 	if cmd:
@@ -1129,6 +1147,24 @@ func _get_command_group_from_array(group_name_chain: Array) -> Dictionary:
 		current_grouping = {}
 	return current_grouping
 
+## Checks if the command group dictionary from an array of strings
+## exists by traversing commands dictionary. If the entire array is not
+## traversed or no group is found then returns false
+func _has_command_group_from_array(group_name_chain: Array) -> bool:
+	var current_grouping: Dictionary = _commands
+	var count: int = 0
+	for item in group_name_chain:
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			count += 1
+			current_grouping = current_grouping[item]
+		elif current_grouping.has(item) \
+			and current_grouping.get(item) is Callable:
+				return false
+	# Return empty if we did not finish getting to the end of the chain
+	if current_grouping == _commands or count != group_name_chain.size():
+		return false
+	return true
 
 ## Gets the arguments from an array of strings by traversing
 ## commands dictionary until a callable is found. 
