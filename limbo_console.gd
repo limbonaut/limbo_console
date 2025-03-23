@@ -315,9 +315,9 @@ func get_command_names(p_include_aliases: bool = false, p_include_cmd_group_name
 	if p_include_aliases:
 		names.append_array(_aliases.keys())
 	if p_include_cmd_group_names:
-		names = create_command_and_group_names(_commands, [], "")
+		names.append_array(create_command_and_group_names(_commands, [], ""))
 	else:
-		names = _commands.keys()
+		names.append_array(_commands.keys())
 	names.sort()
 	return names
 	
@@ -450,7 +450,9 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		if failed:
 			_suggest_argument_corrections(expanded_argv)
 	else:
-		group_cmd_usage(expanded_argv)
+		var cmd_dict: Dictionary = _get_command_group_from_array(expanded_argv)
+		if cmd_dict:
+			group_cmd_usage(expanded_argv)
 	if _options.sparse_mode:
 		print_line("")
 	_silent = false
@@ -482,13 +484,14 @@ func format_name(p_name: String) -> String:
 ## otherwise if the array ends at a command will print the help
 ## text of the command
 func group_cmd_usage(p_argv: Array) -> Error:
-	# TODO: Support aliasing for command groups
+	# TODO: Support aliasing? We should be able to change every arg into
+	# an alias if it exists and unwrap aliases with aliases
+	p_argv = get_alias_argv(p_argv[0])
 	var command_or_group_name: String = p_argv[0]
 	if p_argv.size() == 1 \
 		and _commands.has(command_or_group_name) \
 		and _commands[command_or_group_name] is Callable:
 		return usage(command_or_group_name)
-		
 	var expanded_argv: Array = []
 	var cmd = _get_command_from_array(p_argv)
 	if cmd:
@@ -608,7 +611,6 @@ func _print_command_group_usage(argv: Array) -> void:
 
 	print_line("Commands:")
 	for item in print_array:
-		#TODO: USE THE COLOR FROM THE THEME
 		print_line("%s[color=%s]%s[/color] -- %s" % [tab_string, \
 														item["color"], \
 														item["cmd_name"], \
