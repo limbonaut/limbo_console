@@ -290,8 +290,47 @@ func unregister_command(p_func_or_name) -> void:
 	_command_descriptions.erase(cmd_name)
 
 	for i in range(1, 5):
-		_argument_autocomplete_sources.erase([cmd_name, i])
+		var key = [cmd_name, i]
+		_argument_autocomplete_sources.erase(key)
 
+func get_callable_key(curr: Dictionary, search: Callable, current_key: Array) -> Array:
+	for item in curr.keys():
+		var current_key_copy = current_key.duplicate()
+		current_key_copy.append(item as String)
+		var callable = _get_command_from_array(current_key_copy)
+		if callable == search:
+			return current_key_copy
+		elif curr.get(item, null) is Dictionary:
+			var result: Array = get_callable_key(curr.get(item), search, current_key_copy)
+			if not result.is_empty():
+				return result
+	return []
+
+func unregister_command_group(p_func_or_array) -> void:
+	if p_func_or_array is Callable:
+		var key = get_callable_key(_commands, p_func_or_array, [])
+		p_func_or_array = key
+		if key.is_empty():
+			push_error("LimboConsole: Unregister failed - command not found: " % [p_func_or_array])
+			return
+	if p_func_or_array is Array:
+		var cmd_group_or_cmd = _get_command_group_from_array(p_func_or_array)
+		if cmd_group_or_cmd.is_empty():
+			cmd_group_or_cmd = _get_command_from_array(p_func_or_array)
+			if not cmd_group_or_cmd:
+				push_error("LimboConsole: Unregister failed - command not found: " % [p_func_or_array])
+				return
+		# Get the containing group that we will erase the key from
+		var command_group_array = p_func_or_array.slice(0, p_func_or_array.size() - 1)
+		cmd_group_or_cmd = _get_command_group_from_array(command_group_array)
+		cmd_group_or_cmd.erase(p_func_or_array.back())
+		# TODO: Make sure _commands can be erased from too
+		_command_descriptions.erase(p_func_or_array)
+
+		for i in range(1, 5):
+			var key = p_func_or_array.duplicate()
+			key.append(i)
+			_argument_autocomplete_sources.erase(key)
 
 ## Is a command or an alias registered by the given name.
 func has_command(p_name: String) -> bool:
@@ -441,9 +480,14 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 			cmd = _commands.get(command_name)
 	
 	if not cmd or cmd is Dictionary:
-		error("Unknown command: " + " ".join(expanded_argv))
-		_suggest_similar_command(expanded_argv)
-		_silent = false
+		var containing_group_key = expanded_argv.slice(0, expanded_argv.size() - 1)
+		if cmd is Dictionary and _get_command_group_from_array(containing_group_key):
+			_print_command_group_usage(expanded_argv)
+		else:
+			error("Unknown command: " + " ".join(expanded_argv))
+			_suggest_similar_command(expanded_argv)
+			_silent = false
+		
 		return
 	var valid: bool = _parse_argv(expanded_argv, cmd, command_args)
 	if valid:
@@ -492,17 +536,20 @@ func group_cmd_usage(p_argv: Array) -> Error:
 		and _commands.has(command_or_group_name) \
 		and _commands[command_or_group_name] is Callable:
 		return usage(command_or_group_name)
-	var expanded_argv: Array = []
 	var cmd = _get_command_from_array(p_argv)
 	if cmd:
 		cmd_usage(cmd, p_argv)
 		return OK
 	var cmd_group = _get_command_group_from_array(p_argv)
+	if cmd_group.is_empty():
+		var containing_group_key = p_argv.slice(0, p_argv.size() - 1)
+		if _get_command_group_from_array(containing_group_key):
+			_print_command_group_usage(p_argv)
+			return OK
 	if cmd_group or \
 		(p_argv.size() == 1 and p_argv[0] == " "):
 		_print_command_group_usage(p_argv)
 		return OK
-	
 	error("LimboConsole: command or group not found")
 	return FAILED
 
@@ -606,7 +653,7 @@ func _print_command_group_usage(argv: Array) -> void:
 	var tab_string: String = ""
 	print_array.sort_custom(func(a, b): return a["cmd_name"] < b["cmd_name"])
 	if argv.size() != 0:
-		print_sentence("group_description_display")
+		print_sentence(group_description_display)
 		tab_string = "\t"
 
 	print_line("Commands:")
@@ -813,10 +860,6 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 
 ## Substitutes alias with its real command in argv.
 func _expand_alias(p_argv: PackedStringArray) -> PackedStringArray:
-	# TODO: support alias replacing recursively
-	# should be able to continiously unwrap typed in text?
-	# to get the full string out. 
-	# I don't think supporting suggestions should be a thing for this
 	if p_argv.size() > 0 and _aliases.has(p_argv[0]):
 		return _aliases.get(p_argv[0]) + p_argv.slice(1)
 	else:
@@ -1039,7 +1082,7 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 	var argv: PackedStringArray = PackedStringArray(usage_key)
 	argv.resize(p_argv.size())
 	var command_name: String = p_argv[0]
-	#TODO: Support alias here
+	#TODO: Support alias here? Not sure its really neccessary
 	var corrected := false
 	for i in range(args_only.size()):
 		var accepted_values = []

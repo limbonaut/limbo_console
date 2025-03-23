@@ -80,6 +80,10 @@ static func register_commands() -> void:
 	LimboConsole.add_group_argument_autocomplete_source(["game", "player", "add_item"], 2, func(): return [1,2,3,4,5,6,7,8,9])
 	LimboConsole.add_group_argument_autocomplete_source(["game", "npcs", "status"], 1, func(): return ["active", "inactive"])
 	LimboConsole.add_argument_autocomplete_source("help", 1, LimboConsole.get_command_names.bind(true))
+	# unregister by array
+	LimboConsole.unregister_command_group(["game", "npcs", "status"])
+	# unregister by callable
+	LimboConsole.unregister_command_group(add_item)
 
 static func add_item(item: String, num: int):
 	# without this the auto-complete will not attempt to suggest values
