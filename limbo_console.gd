@@ -427,13 +427,13 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		info("[color=%s][b]>[/b] %s[/color] %s" %
 				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
 
-	var cmd: Variant = _get_command_from_array(argv)
+	var cmd: Variant = _get_command_from_array(expanded_argv)
 	if cmd:
-		expanded_argv = _rebuild_args_for_command_group(argv)
+		expanded_argv = _rebuild_args_for_command_group(expanded_argv)
 	else:
-		var cmd_dict: Dictionary = _get_command_group_from_array(argv)
+		var cmd_dict: Dictionary = _get_command_group_from_array(expanded_argv)
 		if cmd_dict:
-			_print_command_group_usage(argv)
+			_print_command_group_usage(expanded_argv)
 			return
 		else:
 			cmd = _commands.get(command_name)
@@ -448,9 +448,9 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		var err = cmd.callv(command_args)
 		var failed: bool = typeof(err) == TYPE_INT and err > 0
 		if failed:
-			_suggest_argument_corrections(argv)
+			_suggest_argument_corrections(expanded_argv)
 	else:
-		group_cmd_usage(argv)
+		group_cmd_usage(expanded_argv)
 	if _options.sparse_mode:
 		print_line("")
 	_silent = false
