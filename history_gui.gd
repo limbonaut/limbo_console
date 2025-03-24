@@ -228,6 +228,8 @@ func _input(event):
 			decrement_index()
 
 func _calculate_display_count():
+	if not visible:
+		return
 	# The display count is finnicky to get right due to the label needing to be
 	# rendered so the fize can be determined. This gets the job done, it ain't 
 	# pretty, but it works
