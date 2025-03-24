@@ -22,68 +22,7 @@ static func register_commands() -> void:
 	LimboConsole.register_command(cmd_vsync, "vsync", "adjust V-Sync")
 	LimboConsole.register_command(LimboConsole.erase_history, "erase_history", "erases current history and persisted history")
 
-	var group = {
-		# subgroups in group
-		"subgroups_group": { 
-			"sub_sub_command": func(): LimboConsole.info("sub sub command!!!!"),
-			"sub_sub_command2": func(): LimboConsole.info("sub sub command2!!!!!!"),
-			"sub_sub_sub": {
-				"sub_sub_sub_command": func(): LimboConsole.info("so deep!"),
-				"sub_sub_sub_sub": {
-					"sub_sub_sub_sub_command": func(number): LimboConsole.info("last one..." + str(number))
-				}
-			}
-		},
-		"sub_command": func(): LimboConsole.info("sub_command!!!!")
-	}
-		
-	# These can be ommitted
-	var group_descriptions = {
-		["command_group", "subgroups_group"]: "the subgroups group!",
-		["command_group", "subgroups_group", "sub_sub_sub"]: "omg 2 layers deep!",
-		["command_group", "subgroups_group", "sub_sub_sub", "sub_sub_sub_command"]: "wow",
-		["command_group", "subgroups_group", "sub_sub_sub", "sub_sub_sub_sub"]: "wow another??",
-		["command_group", "subgroups_group", "sub_sub_sub", "sub_sub_sub_sub", "sub_sub_sub_sub_command"]: "OMG THIS IS THE LAST ONE I SWEAR",
-		["command_group", "subgroups_group", "sub_sub_command"]: "the sub sub command",
-		["command_group", "subgroups_group", "sub_sub_command2"]: "the sub sub command 2!!",
-		["command_group", "sub_command"]: "The sub_command"
-	}
-	
-	LimboConsole.register_command_group(group, group_descriptions, "command_group", "first sub-group!")
-	var game_commands = {
-		"player" = {
-			"add_item": add_item,
-		},
-		"npcs" = {
-			"status": npc_status
-		},
-		"start" = func(): LimboConsole.info("Starting game..."),
-		"stop" = func(force: bool): 
-						LimboConsole.info("Stopping game. Force: %s" % [force])
-						if force is bool:
-							return FAILED
-	}
-	var game_descs = {
-		["game", "npcs"]: "Commands for the npcs",
-		["game", "player"]: "Commands for the player",
-		["game", "player", "add_item"]: "Adds an item to the player inventory",
-		["game", "npcs", "status"]: "status of an npc",
-		["game", "start"]: "starts the game",
-		["game", "stop"]: "stops the game",
-		["game", "errrrrr"]: "hehe"
-	}
-
-	# TODO: Support a validator func?
-	# TODO: Support default values?
-	LimboConsole.register_command_group(game_commands, game_descs, "game", "Commands for the game")
-	LimboConsole.add_group_argument_autocomplete_source(["game", "player", "add_item"], 1, func(): return ["sword", "shield", "food", "potion"])
-	LimboConsole.add_group_argument_autocomplete_source(["game", "player", "add_item"], 2, func(): return [1,2,3,4,5,6,7,8,9])
-	LimboConsole.add_group_argument_autocomplete_source(["game", "npcs", "status"], 1, func(): return ["active", "inactive"])
 	LimboConsole.add_argument_autocomplete_source("help", 1, LimboConsole.get_command_names.bind(true))
-	# unregister by array
-	LimboConsole.unregister_command_group(["game", "npcs", "status"])
-	# unregister by callable
-	LimboConsole.unregister_command_group(add_item)
 
 static func add_item(item: String, num: int):
 	# without this the auto-complete will not attempt to suggest values
