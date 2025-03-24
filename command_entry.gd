@@ -119,7 +119,7 @@ class CommandEntryHighlighter extends SyntaxHighlighter:
 			elif LimboConsole.has_command_group(chain_as_string):
 				color_dict.set(text_start, {"color": command_group_found_color})
 			else:
-				color_dict.set(text_start, {"color": text_color})
+				color_dict.set(text_start, {"color": command_not_found_color})
 			text_end += len(item) + 1
 			text_start = text_end
 		# TODO: When aliases support arguments uncomment the below to
