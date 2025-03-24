@@ -33,6 +33,7 @@ var _previous_gui_focus: Control
 var _output_command_color: Color
 var _output_command_mention_color: Color
 var _output_command_group_mention_color: Color
+var _output_command_alias_mention_color: Color
 var _output_error_color: Color
 var _output_warning_color: Color
 var _output_text_color: Color
@@ -42,6 +43,7 @@ var _entry_hint_color: Color
 var _entry_command_found_color: Color
 var _entry_command_not_found_color: Color
 var _entry_command_group_found_color: Color
+var _entry_alias_found_color: Color
 
 var _options: ConsoleOptions
 var _commands: Dictionary # command_name => Callable
@@ -232,9 +234,10 @@ func print_command_output(argv: PackedStringArray):
 	for item in argv:
 		current_chain.append(item)
 		var chain_as_string = " ".join(current_chain)
-		if LimboConsole.has_command(chain_as_string) \
-			or LimboConsole.has_alias(chain_as_string):
-				# TODO: Should aliases have their own color?
+		# Aliases can override commands so this coloring comes first
+		if LimboConsole.has_alias(item):
+			colored_line_pieces.append("[color=%s]%s[/color]" % [_output_command_alias_mention_color.to_html(), item])
+		elif LimboConsole.has_command(chain_as_string):
 				colored_line_pieces.append("[color=%s]%s[/color]" % [_output_command_color.to_html(), item])
 		elif LimboConsole.has_command_group(chain_as_string):
 			colored_line_pieces.append("[color=%s]%s[/color]" % [_output_command_group_mention_color.to_html(), item])
@@ -369,9 +372,7 @@ func has_command_group(p_name: String) -> bool:
 	if command_chain.size() <= 0:
 		return false
 	else:
-		var cmd_group = _has_command_group_from_array(command_chain)
-		if cmd_group:
-			return true
+		return _has_command_group_from_array(command_chain)
 	return false
 
 func get_command_names(p_include_aliases: bool = false, p_include_cmd_group_names: bool = false) -> PackedStringArray:
@@ -500,16 +501,13 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 			return
 		else:
 			cmd = _commands.get(command_name)
-	
-	if not cmd or cmd is Dictionary:
-		var containing_group_key = expanded_argv.slice(0, expanded_argv.size() - 1)
-		if cmd is Dictionary and _get_command_group_from_array(containing_group_key):
+	if cmd is Dictionary and _has_command_group_from_array(expanded_argv):
 			_print_command_group_usage(expanded_argv)
-		else:
-			error("Unknown command: " + " ".join(expanded_argv))
-			_suggest_similar_command(expanded_argv)
-			_silent = false
-		
+			return
+	if not cmd or cmd is Dictionary:
+		error("Unknown command: " + " ".join(expanded_argv))
+		_suggest_similar_command(expanded_argv)
+		_silent = false
 		return
 	var valid: bool = _parse_argv(expanded_argv, cmd, command_args)
 	if valid:
@@ -767,6 +765,7 @@ func _init_theme() -> void:
 	_output_command_color = theme.get_color(&"output_command_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_command_mention_color = theme.get_color(&"output_command_mention_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_command_group_mention_color = theme.get_color(&"output_command_group_mention_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_command_alias_mention_color = theme.get_color(&"output_command_alias_mention_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_text_color = theme.get_color(&"output_text_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_error_color = theme.get_color(&"output_error_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_warning_color = theme.get_color(&"output_warning_color", CONSOLE_COLORS_THEME_TYPE)
@@ -776,6 +775,7 @@ func _init_theme() -> void:
 	_entry_command_found_color = theme.get_color(&"entry_command_found_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_not_found_color = theme.get_color(&"entry_command_not_found_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_group_found_color = theme.get_color(&"entry_command_group_found_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_alias_found_color = theme.get_color(&"entry_command_alias_found_color", CONSOLE_COLORS_THEME_TYPE)
 	_output.add_theme_color_override(&"default_color", _output_text_color)
 	_entry.add_theme_color_override(&"font_color", _entry_text_color)
 	_entry.add_theme_color_override(&"hint_color", _entry_hint_color)
@@ -783,6 +783,7 @@ func _init_theme() -> void:
 	_entry.syntax_highlighter.command_not_found_color = _entry_command_not_found_color
 	_entry.syntax_highlighter.command_group_found_color = _entry_command_group_found_color
 	_entry.syntax_highlighter.text_color = _entry_text_color
+	_entry.syntax_highlighter.alias_found_color = _entry_alias_found_color
 
 
 func _greet() -> void:
