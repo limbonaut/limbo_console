@@ -24,12 +24,6 @@ static func register_commands() -> void:
 
 	LimboConsole.add_argument_autocomplete_source("help", 1, LimboConsole.get_command_names.bind(true))
 
-static func add_item(item: String, num: int):
-	# without this the auto-complete will not attempt to suggest values
-	# see help for an example that exists already
-	if item not in ["sword", "shield", "food", "potion"]:
-		return FAILED
-	LimboConsole.info("adding %s of %s" % [item, num])
 
 static func npc_status(id: String):
 	LimboConsole.info("NPC Status: %s" % [id])
