@@ -25,10 +25,6 @@ static func register_commands() -> void:
 	LimboConsole.add_argument_autocomplete_source("help", 1, LimboConsole.get_command_names.bind(true))
 
 
-static func npc_status(id: String):
-	LimboConsole.info("NPC Status: %s" % [id])
-	pass
-
 static func _alias_usage() -> void:
 	LimboConsole.info("Usage: %s alias_name command_to_run [args...]" % [LimboConsole.format_name("alias")])
 
