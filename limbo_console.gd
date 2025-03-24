@@ -334,13 +334,18 @@ func unregister_command_group(p_func_or_array) -> void:
 		if cmd_group_or_cmd.is_empty():
 			cmd_group_or_cmd = _get_command_from_array(p_func_or_array)
 			if not cmd_group_or_cmd:
-				push_error("LimboConsole: Unregister failed - command not found: " % [p_func_or_array])
+				push_error("LimboConsole: Unregister failed - command not found: %s" % [p_func_or_array])
 				return
 		# Get the containing group that we will erase the key from
 		var command_group_array = p_func_or_array.slice(0, p_func_or_array.size() - 1)
 		cmd_group_or_cmd = _get_command_group_from_array(command_group_array)
+		# If the command group is empty at this point then we are at the root
+		if cmd_group_or_cmd.is_empty():
+			for val in _commands.keys():
+				if p_func_or_array == [val]:
+					cmd_group_or_cmd = _commands
+					p_func_or_array = [val]
 		cmd_group_or_cmd.erase(p_func_or_array.back())
-		# TODO: Make sure _commands can be erased from too
 		_command_descriptions.erase(p_func_or_array)
 
 		for i in range(1, 5):
@@ -359,7 +364,6 @@ func has_command(p_name: String) -> bool:
 			return true
 	return _commands.has(p_name) and _commands.get(p_name) is Callable
 
-# TODO: This does not recognize empty command groups -- it should
 func has_command_group(p_name: String) -> bool:
 	var command_chain = p_name.split(" ")
 	if command_chain.size() <= 0:
