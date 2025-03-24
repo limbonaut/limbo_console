@@ -1,3 +1,4 @@
+# TODO: Create a command builder for helping to create commands with groups
 extends CanvasLayer
 ## LimboConsole
 
@@ -1105,7 +1106,6 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 	var argv: PackedStringArray = PackedStringArray(usage_key)
 	argv.resize(p_argv.size())
 	var command_name: String = p_argv[0]
-	#TODO: Support alias here? Not sure its really neccessary
 	var corrected := false
 	for i in range(args_only.size()):
 		var accepted_values = []
