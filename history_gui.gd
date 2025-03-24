@@ -211,7 +211,22 @@ func _reset_indexes():
 func _ready():
 	# The sizing of the labels is dependant on visiblity
 	connect("visibility_changed", _calculate_display_count)
-	
+	_scroll_bar.connect("scrolling", _scroll_bar_scrolled)
+
+## When the scrollbar has been scrolled (by mouse), scroll the list
+func _scroll_bar_scrolled():
+	_offset = _scroll_bar.max_value - _display_count - _scroll_bar.value
+	_update_highlight()
+	_update_scroll_list()
+
+func _input(event):
+	# Scroll up/down on mouse wheel up/down
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			increment_index()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			decrement_index()
+
 func _calculate_display_count():
 	# The display count is finnicky to get right due to the label needing to be
 	# rendered so the fize can be determined. This gets the job done, it ain't 
