@@ -227,6 +227,10 @@ func _input(event):
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			decrement_index()
 
+	# Remaining inputs are key press handles
+	if event is not InputEventKey:
+		return
+		
 	# Increment/Decrement index
 	if event.keycode == KEY_UP and event.is_pressed():
 		increment_index()
