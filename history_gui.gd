@@ -227,6 +227,15 @@ func _input(event):
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			decrement_index()
 
+	# Increment/Decrement index
+	if event.keycode == KEY_UP and event.is_pressed():
+		increment_index()
+		get_viewport().set_input_as_handled()
+	elif event.keycode == KEY_DOWN and event.is_pressed():
+		decrement_index()
+		get_viewport().set_input_as_handled()
+	
+
 func _calculate_display_count():
 	if not visible:
 		return
