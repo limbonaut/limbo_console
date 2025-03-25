@@ -520,6 +520,8 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		var cmd_dict: Dictionary = _get_command_group_from_array(expanded_argv)
 		if cmd_dict:
 			group_cmd_usage(expanded_argv)
+		else:
+			cmd_usage(cmd, expanded_argv)
 	if _options.sparse_mode:
 		print_line("")
 	_silent = false
