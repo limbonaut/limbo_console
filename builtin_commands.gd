@@ -58,13 +58,7 @@ static func cmd_alias(p_alias_expression: String = "") -> void:
 		end += 1
 	var command: String = p_alias_expression.substr(idx, end - idx).strip_edges()
 
-	if not command.is_valid_identifier():
-		LimboConsole.error("Invalid command identifier.")
-		_alias_usage()
-		return
-
 	# Note: It should be possible to create aliases for commands that are not yet registered.
-
 	idx = end
 	var args: String = p_alias_expression.substr(idx).strip_edges()
 	LimboConsole.remove_alias(alias)
