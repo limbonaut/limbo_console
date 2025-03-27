@@ -91,22 +91,45 @@ func _hide_scrollbars() -> void:
 class CommandEntryHighlighter extends SyntaxHighlighter:
 	var command_found_color: Color
 	var command_not_found_color: Color
+	var command_group_found_color: Color
+	var alias_found_color: Color
 	var text_color: Color
 
 	func _get_line_syntax_highlighting(line: int) -> Dictionary:
-		var command_color: Color
-		var command: String
-		var text: String = get_text_edit().text
-		var end: int = 0
-
-		for c in text:
-			if c == ' ':
-				break
-			end += 1
-		command = text.substr(0, end).strip_edges()
-		command_color = command_found_color if LimboConsole.has_command(command) or LimboConsole.has_alias(command) else command_not_found_color
-
-		return {
-			0: {"color": command_color},
-			end: {"color": text_color},
-			}
+		var color_dict: Dictionary = {}
+		if get_text_edit().text.is_empty():
+			return color_dict
+		var command_chain = LimboConsole._parse_command_line(get_text_edit().text)
+		# TODO: _ indicates private -- do we need to update this?
+		var args_only: Array = LimboConsole._get_args_from_array(command_chain)
+		var usage_key: Array = command_chain.slice(0, command_chain.size() - args_only.size())
+		var text_start = 0
+		var text_end = 0 if command_chain.size() > 0 else len(command_chain[0])
+		var current_chain = PackedStringArray([])
+		for item in usage_key:
+			if item.is_empty():
+				continue
+			current_chain.append(item)
+			var chain_as_string = " ".join(current_chain)
+			# Aliases can override commands so it comes first for coloring
+			if LimboConsole.has_alias(item):
+				color_dict.set(text_start, {"color": alias_found_color})
+			elif LimboConsole.has_command(chain_as_string):
+				color_dict.set(text_start, {"color": command_found_color})
+			elif LimboConsole.has_command_group(chain_as_string):
+				color_dict.set(text_start, {"color": command_group_found_color})
+			else:
+				color_dict.set(text_start, {"color": command_not_found_color})
+			text_end += len(item) + 1
+			text_start = text_end
+		# TODO: When aliases support arguments uncomment the below to
+		# color coat the replacement with alias color
+		#for item in args_only:
+			#if LimboConsole.has_alias(item):
+				#color_dict.set(text_start, {"color": alias_found_color})
+			#else:
+				#color_dict.set(text_start, {"color": text_color})
+			#text_end += len(item) + 1
+			#text_start = text_end
+		color_dict.set(text_end, {"color": text_color})
+		return color_dict

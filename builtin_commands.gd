@@ -21,6 +21,7 @@ static func register_commands() -> void:
 	LimboConsole.register_command(cmd_unalias, "unalias", "remove command alias")
 	LimboConsole.register_command(cmd_vsync, "vsync", "adjust V-Sync")
 	LimboConsole.register_command(LimboConsole.erase_history, "erase_history", "erases current history and persisted history")
+
 	LimboConsole.add_argument_autocomplete_source("help", 1, LimboConsole.get_command_names.bind(true))
 
 
@@ -151,13 +152,9 @@ static func cmd_fullscreen() -> void:
 
 static func cmd_help(p_command_name: String = "") -> Error:
 	if p_command_name.is_empty():
-		LimboConsole.print_line(LimboConsole.format_tip("Type %s to list all available commands." %
-				[LimboConsole.format_name("commands")]))
-		LimboConsole.print_line(LimboConsole.format_tip("Type %s to get more info about the command." %
-				[LimboConsole.format_name("help command")]))
-		return OK
+		return LimboConsole.group_cmd_usage([" "])
 	else:
-		return LimboConsole.usage(p_command_name)
+		return LimboConsole.group_cmd_usage(p_command_name.split(" "))
 
 
 static func cmd_log(p_num_lines: int = 10) -> Error:

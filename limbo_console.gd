@@ -1,3 +1,4 @@
+# TODO: Create a command builder for helping to create commands with groups
 extends CanvasLayer
 ## LimboConsole
 
@@ -32,6 +33,8 @@ var _previous_gui_focus: Control
 # Theme colors
 var _output_command_color: Color
 var _output_command_mention_color: Color
+var _output_command_group_mention_color: Color
+var _output_command_alias_mention_color: Color
 var _output_error_color: Color
 var _output_warning_color: Color
 var _output_text_color: Color
@@ -40,6 +43,8 @@ var _entry_text_color: Color
 var _entry_hint_color: Color
 var _entry_command_found_color: Color
 var _entry_command_not_found_color: Color
+var _entry_command_group_found_color: Color
+var _entry_alias_found_color: Color
 
 var _options: ConsoleOptions
 var _commands: Dictionary # command_name => Callable
@@ -224,6 +229,43 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 	if p_stdout:
 		print(Util.bbcode_strip(p_line))
 
+func print_command_output(argv: PackedStringArray):
+	var colored_line_pieces = PackedStringArray([])
+	var current_chain = []
+	for item in argv:
+		current_chain.append(item)
+		var chain_as_string = " ".join(current_chain)
+		# Aliases can override commands so this coloring comes first
+		if LimboConsole.has_alias(item):
+			colored_line_pieces.append("[color=%s]%s[/color]" % [_output_command_alias_mention_color.to_html(), item])
+		elif LimboConsole.has_command(chain_as_string):
+				colored_line_pieces.append("[color=%s]%s[/color]" % [_output_command_color.to_html(), item])
+		elif LimboConsole.has_command_group(chain_as_string):
+			colored_line_pieces.append("[color=%s]%s[/color]" % [_output_command_group_mention_color.to_html(), item])
+		else:
+			colored_line_pieces.append("[color=%s]%s[/color]" % [_output_text_color.to_html(), item])
+	var output_command_string = " ".join(colored_line_pieces)
+	info("[color=%s][b]>[/b][/color] %s" %
+			[_output_command_color.to_html(), output_command_string])
+
+## Registers a command group into the command dictionary
+func register_command_group(p_dict: Dictionary, p_desc_dict: Dictionary, p_name: String = "", p_desc: String = "") -> void:
+	if not p_name.is_valid_ascii_identifier():
+		push_error("LimboConsole: Failed to register command: %s. A command must be a valid ascii identifier" % [p_name])
+		return
+	if not _validate_command_group(p_dict):
+		push_error("LimboConsole: Failed to register command: %s. A " % [p_name])
+		return
+	if _commands.has(p_name):
+		push_error("LimboConsole: Command already registered: " + p_name)
+		return
+	_commands[p_name] = p_dict
+	_command_descriptions[[p_name]] = p_desc
+	for val in p_desc_dict.keys():
+		if _validate_group_description(val):
+			_command_descriptions.set(val, p_desc_dict[val])
+		else:
+			push_warning("LimboConsole: Unable to register description for: %s" % [val])
 
 ## Registers a new command for the specified callable. [br]
 ## Optionally, you can provide a name and a description.
@@ -248,7 +290,7 @@ func register_command(p_func: Callable, p_name: String = "", p_desc: String = ""
 		return
 	# Note: It should be possible to have an alias with the same name.
 	_commands[name] = p_func
-	_command_descriptions[name] = p_desc
+	_command_descriptions[[name]] = p_desc
 
 
 ## Unregisters the command specified by its name or a callable.
@@ -268,20 +310,97 @@ func unregister_command(p_func_or_name) -> void:
 	_command_descriptions.erase(cmd_name)
 
 	for i in range(1, 5):
-		_argument_autocomplete_sources.erase([cmd_name, i])
+		var key = [cmd_name, i]
+		_argument_autocomplete_sources.erase(key)
 
+func get_callable_key(curr: Dictionary, search: Callable, current_key: Array) -> Array:
+	for item in curr.keys():
+		var current_key_copy = current_key.duplicate()
+		current_key_copy.append(item as String)
+		var callable = _get_command_from_array(current_key_copy)
+		if callable == search:
+			return current_key_copy
+		elif curr.get(item, null) is Dictionary:
+			var result: Array = get_callable_key(curr.get(item), search, current_key_copy)
+			if not result.is_empty():
+				return result
+	return []
+
+func unregister_command_group(p_func_or_array) -> void:
+	if p_func_or_array is Callable:
+		var key = get_callable_key(_commands, p_func_or_array, [])
+		p_func_or_array = key
+		if key.is_empty():
+			push_error("LimboConsole: Unregister failed - command not found: " % [p_func_or_array])
+			return
+	if p_func_or_array is Array:
+		var cmd_group_or_cmd = _get_command_group_from_array(p_func_or_array)
+		if cmd_group_or_cmd.is_empty():
+			cmd_group_or_cmd = _get_command_from_array(p_func_or_array)
+			if not cmd_group_or_cmd:
+				push_error("LimboConsole: Unregister failed - command not found: %s" % [p_func_or_array])
+				return
+		# Get the containing group that we will erase the key from
+		var command_group_array = p_func_or_array.slice(0, p_func_or_array.size() - 1)
+		cmd_group_or_cmd = _get_command_group_from_array(command_group_array)
+		# If the command group is empty at this point then we are at the root
+		if cmd_group_or_cmd.is_empty():
+			for val in _commands.keys():
+				if p_func_or_array == [val]:
+					cmd_group_or_cmd = _commands
+					p_func_or_array = [val]
+		cmd_group_or_cmd.erase(p_func_or_array.back())
+		_command_descriptions.erase(p_func_or_array)
+
+		for i in range(1, 5):
+			var key = p_func_or_array.duplicate()
+			key.append(i)
+			_argument_autocomplete_sources.erase(key)
 
 ## Is a command or an alias registered by the given name.
 func has_command(p_name: String) -> bool:
-	return _commands.has(p_name)
+	var command_chain = p_name.split(" ")
+	if command_chain.size() > 1:
+		var args_only: Array = _get_args_from_array(command_chain)
+		var usage_key: Array = command_chain.slice(0, command_chain.size() - args_only.size())
+		var cmd = _get_command_from_array(usage_key)
+		if cmd and usage_key.size() == command_chain.size():
+			return true
+	return _commands.has(p_name) and _commands.get(p_name) is Callable
 
+func has_command_group(p_name: String) -> bool:
+	var command_chain = p_name.split(" ")
+	if command_chain.size() <= 0:
+		return false
+	else:
+		return _has_command_group_from_array(command_chain)
+	return false
 
-func get_command_names(p_include_aliases: bool = false) -> PackedStringArray:
-	var names: PackedStringArray = _commands.keys()
+func get_command_names(p_include_aliases: bool = false, p_include_cmd_group_names: bool = false) -> PackedStringArray:
+	var names: PackedStringArray = PackedStringArray([])
 	if p_include_aliases:
 		names.append_array(_aliases.keys())
+	if p_include_cmd_group_names:
+		names.append_array(create_command_and_group_names(_commands, [], ""))
+	else:
+		names.append_array(_commands.keys())
 	names.sort()
 	return names
+	
+## Iterates the entire _commands dictionary and appends
+## each full command group string and each full command execution
+## string to an array
+func create_command_and_group_names(p_dict: Dictionary, p_result: Array, parent_key: String = "") -> Array:
+	if p_result == null:
+		p_result = []
+	for k in p_dict.keys():
+		var new_key = parent_key + " " + k if parent_key != "" else k
+		if p_dict[k] is Dictionary:
+			p_result.append(new_key)
+			create_command_and_group_names(p_dict[k], p_result, new_key)
+		else:
+			p_result.append(new_key)
+	return p_result
 
 
 func get_command_description(p_name: String) -> String:
@@ -338,6 +457,23 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 	var key := [p_command, p_argument]
 	_argument_autocomplete_sources[key] = p_source
 
+## Registers a callable that should return an array of possible values for the given argument and command.
+## It will be used for autocompletion.
+func add_group_argument_autocomplete_source(p_command: Array, p_argument: int, p_source: Callable) -> void:
+	if not p_source.is_valid():
+		push_error("LimboConsole: Can't add autocomplete source: source callable is not valid")
+		return
+	var cmd_callable = _get_command_from_array(p_command)
+	if !cmd_callable:
+		push_error("LimboConsole: Can't add autocomplete source: command doesn't exist: ", p_command)
+		return
+	if p_argument < 1 or p_argument > 5:
+		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
+		return
+	var key := p_command
+	key.append(p_argument)
+	_argument_autocomplete_sources[key] = p_source
+
 
 ## Parses the command line and executes the command if it's valid.
 func execute_command(p_command_line: String, p_silent: bool = false) -> void:
@@ -354,16 +490,26 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	if not p_silent:
 		var history_line: String = " ".join(argv)
 		_push_history(history_line)
-		info("[color=%s][b]>[/b] %s[/color] %s" %
-				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
+		print_command_output(argv)
 
-	if not has_command(command_name):
-		error("Unknown command: " + command_name)
+	var cmd: Variant = _get_command_from_array(expanded_argv)
+	if cmd:
+		expanded_argv = _rebuild_args_for_command_group(expanded_argv)
+	else:
+		var cmd_dict: Dictionary = _get_command_group_from_array(expanded_argv)
+		if cmd_dict:
+			_print_command_group_usage(expanded_argv)
+			return
+		else:
+			cmd = _commands.get(command_name)
+	if cmd is Dictionary and _has_command_group_from_array(expanded_argv):
+			_print_command_group_usage(expanded_argv)
+			return
+	if not cmd or cmd is Dictionary:
+		error("Unknown command: " + " ".join(expanded_argv))
 		_suggest_similar_command(expanded_argv)
 		_silent = false
 		return
-
-	var cmd: Callable = _commands.get(command_name)
 	var valid: bool = _parse_argv(expanded_argv, cmd, command_args)
 	if valid:
 		var err = cmd.callv(command_args)
@@ -371,7 +517,11 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		if failed:
 			_suggest_argument_corrections(expanded_argv)
 	else:
-		usage(argv[0])
+		var cmd_dict: Dictionary = _get_command_group_from_array(expanded_argv)
+		if cmd_dict:
+			group_cmd_usage(expanded_argv)
+		else:
+			cmd_usage(cmd, expanded_argv)
 	if _options.sparse_mode:
 		print_line("")
 	_silent = false
@@ -399,26 +549,59 @@ func format_tip(p_text: String) -> String:
 func format_name(p_name: String) -> String:
 	return "[color=" + _output_command_mention_color.to_html() + "]" + p_name + "[/color]"
 
+## Prints the help text of a group if it exists at the array of strings
+## otherwise if the array ends at a command will print the help
+## text of the command
+func group_cmd_usage(p_argv: Array) -> Error:
+	p_argv = _expand_alias(p_argv)
+	var command_or_group_name: String = p_argv[0]
+	if p_argv.size() == 1 \
+		and _commands.has(command_or_group_name) \
+		and _commands[command_or_group_name] is Callable:
+		return usage(command_or_group_name)
+	var cmd = _get_command_from_array(p_argv)
+	if cmd:
+		cmd_usage(cmd, p_argv)
+		return OK
+	var cmd_group = _get_command_group_from_array(p_argv)
+	if cmd_group.is_empty():
+		var containing_group_key = p_argv.slice(0, p_argv.size() - 1)
+		if _get_command_group_from_array(containing_group_key):
+			_print_command_group_usage(p_argv)
+			return OK
+	if cmd_group or \
+		(p_argv.size() == 1 and p_argv[0] == " "):
+		_print_command_group_usage(p_argv)
+		return OK
+	error("LimboConsole: command or group not found")
+	return FAILED
 
-## Prints the help text for the given command.
+
+## Prints the usage text for the given command or group at the root
 func usage(p_command: String) -> Error:
 	if _aliases.has(p_command):
 		var alias_argv: PackedStringArray = get_alias_argv(p_command)
 		var formatted_cmd := "%s %s" % [format_name(alias_argv[0]), ' '.join(alias_argv.slice(1))]
 		print_line("Alias of: " + formatted_cmd)
 		p_command = alias_argv[0]
-
 	if not has_command(p_command):
 		error("Command not found: " + p_command)
 		return ERR_INVALID_PARAMETER
-
 	var callable: Callable = _commands[p_command]
+	return cmd_usage(callable, [p_command])
+
+
+## Prints the usage of the callable
+func cmd_usage(callable: Callable, argv: Array):
+	var argv_packed := PackedStringArray(argv)
+	var args_only: Array = _get_args_from_array(argv)
+	var usage_key: Array = argv.slice(0, argv.size() - args_only.size()) as Array
+	var usage_line: String = "Usage: %s" % [" ".join(usage_key)]
 	var method_info: Dictionary = Util.get_method_info(callable)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + callable.get_method())
 		print_line("Usage: ???")
 
-	var usage_line: String = "Usage: %s" % [p_command]
 	var arg_lines: String = ""
 	var values_lines: String = ""
 	var required_args: int = method_info.args.size() - method_info.default_args.size()
@@ -438,8 +621,11 @@ func usage(p_command: String) -> Error:
 				def_value = "\"" + def_value + "\""
 			def_spec = " = %s" % [def_value]
 		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
-		if _argument_autocomplete_sources.has([p_command, i + 1]):
-			var auto_complete_callable: Callable = _argument_autocomplete_sources[[p_command, i + 1]]
+		
+		var key := argv.slice(0, argv.size() - args_only.size()) as Array
+		key.append(i - ((argv.size() - args_only.size())) + 1)
+		if _argument_autocomplete_sources.has(key):
+			var auto_complete_callable: Callable = _argument_autocomplete_sources[key]
 			var arg_autocompletes = auto_complete_callable.call()
 			if len(arg_autocompletes) > 0:
 				var values: String = str(arg_autocompletes).replace("[", "").replace("]", "")
@@ -447,22 +633,59 @@ func usage(p_command: String) -> Error:
 	arg_lines = arg_lines.trim_suffix('\n')
 
 	print_line(usage_line)
-
 	var desc_line: String = ""
-	desc_line = _command_descriptions.get(p_command, "")
-	if not desc_line.is_empty():
-		desc_line[0] = desc_line[0].capitalize()
-		if desc_line.right(1) != ".":
-			desc_line += "."
-		print_line(desc_line)
+	desc_line = _command_descriptions.get(usage_key, "")
+	print_sentence(desc_line)
 
 	if not arg_lines.is_empty():
-		print_line("Arguments:")
+		print_line("Arguments")
 		print_line(arg_lines)
 	if not values_lines.is_empty():
 		print_line("Values:")
 		print_line(values_lines)
 	return OK
+
+## Prints a command groups sub commands and the root of sub groups
+## and their descriptions
+func _print_command_group_usage(argv: Array) -> void:
+	var group_description_display: String = _command_descriptions.get(argv, "")
+	var command_group: Dictionary = {}
+	if argv.size() == 1 and argv[0] == " ":
+		command_group = _commands
+		argv = []
+	else:
+		command_group = _get_command_group_from_array(argv)
+	var print_array: Array[Dictionary] = []
+	# loop all keys at group
+	for cmd_name in command_group.keys():
+		var is_cmd: bool = false
+		var cmd_description: String = ""
+		var color: String = _output_command_mention_color.to_html()
+		var argv_copy: Array = argv.duplicate()
+		 # TODO: Why is item a string name that we have to cast?
+		argv_copy.append(cmd_name as String)
+		cmd_description = _command_descriptions.get(argv_copy, "")
+		var cmd = _get_command_from_array(argv_copy)
+		if not cmd:
+			color = _output_command_group_mention_color.to_html()
+		print_array.append({
+			"color": color,
+			"cmd_name": cmd_name,
+			"description": cmd_description
+		})
+	var tab_string: String = ""
+	print_array.sort_custom(func(a, b): return a["cmd_name"] < b["cmd_name"])
+	if argv.size() != 0:
+		print_sentence(group_description_display)
+		tab_string = "\t"
+
+	print_line("Commands:")
+	for item in print_array:
+		print_line("%s[color=%s]%s[/color] -- %s" % [tab_string, \
+														item["color"], \
+														item["cmd_name"], \
+														item["description"] \
+													])
 
 
 ## Define an input variable for "eval" command.
@@ -544,6 +767,8 @@ func _init_theme() -> void:
 	const CONSOLE_COLORS_THEME_TYPE := &"ConsoleColors"
 	_output_command_color = theme.get_color(&"output_command_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_command_mention_color = theme.get_color(&"output_command_mention_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_command_group_mention_color = theme.get_color(&"output_command_group_mention_color", CONSOLE_COLORS_THEME_TYPE)
+	_output_command_alias_mention_color = theme.get_color(&"output_command_alias_mention_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_text_color = theme.get_color(&"output_text_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_error_color = theme.get_color(&"output_error_color", CONSOLE_COLORS_THEME_TYPE)
 	_output_warning_color = theme.get_color(&"output_warning_color", CONSOLE_COLORS_THEME_TYPE)
@@ -552,13 +777,16 @@ func _init_theme() -> void:
 	_entry_hint_color = theme.get_color(&"entry_hint_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_found_color = theme.get_color(&"entry_command_found_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_not_found_color = theme.get_color(&"entry_command_not_found_color", CONSOLE_COLORS_THEME_TYPE)
-
+	_entry_command_group_found_color = theme.get_color(&"entry_command_group_found_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_alias_found_color = theme.get_color(&"entry_command_alias_found_color", CONSOLE_COLORS_THEME_TYPE)
 	_output.add_theme_color_override(&"default_color", _output_text_color)
 	_entry.add_theme_color_override(&"font_color", _entry_text_color)
 	_entry.add_theme_color_override(&"hint_color", _entry_hint_color)
 	_entry.syntax_highlighter.command_found_color = _entry_command_found_color
 	_entry.syntax_highlighter.command_not_found_color = _entry_command_not_found_color
+	_entry.syntax_highlighter.command_group_found_color = _entry_command_group_found_color
 	_entry.syntax_highlighter.text_color = _entry_text_color
+	_entry.syntax_highlighter.alias_found_color = _entry_alias_found_color
 
 
 func _greet() -> void:
@@ -785,7 +1013,8 @@ func _autocomplete() -> void:
 		_autocomplete_matches.remove_at(0)
 		_autocomplete_matches.push_back(match_str)
 		_update_autocomplete()
-		
+
+
 func _reverse_autocomplete():
 	if not _autocomplete_matches.is_empty():
 		var match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
@@ -795,6 +1024,7 @@ func _reverse_autocomplete():
 		_fill_entry(match_str)
 		_update_autocomplete()
 		
+
 ## Updates autocomplete suggestions and hint based on user input.
 func _update_autocomplete() -> void:
 	var argv: PackedStringArray = _expand_alias(_parse_command_line(_entry.text))
@@ -804,16 +1034,17 @@ func _update_autocomplete() -> void:
 	var last_arg: int = argv.size() - 1
 
 	if _autocomplete_matches.is_empty() and not _entry.text.is_empty():
-		if last_arg == 0:
-			# Command name
-			var line: String = _entry.text
-			for k in get_command_names(true):
-				if k.begins_with(line):
-					_autocomplete_matches.append(k)
-			_autocomplete_matches.sort()
-		else:
-			# Arguments
-			var key := [command_name, last_arg]
+		# check for groups first before args
+		var line: String = _entry.text
+		var lines = argv.slice(0, argv.size() - 1)
+		# check if current full line leads to a callable or a dictionary
+		var current_line_val: Variant = _get_command_from_array(lines)
+		if not current_line_val:
+			current_line_val = _get_command_group_from_array(lines)
+		if current_line_val is Callable and last_arg != 0:
+			var args_only := _get_args_from_array(argv)
+			var key := argv.slice(0, argv.size() - args_only.size()) as Array
+			key.append(last_arg - ((argv.size() - args_only.size())) + 1)
 			if _argument_autocomplete_sources.has(key):
 				var argument_values = _argument_autocomplete_sources[key].call()
 				if not _validate_autocomplete_result(argument_values, command_name):
@@ -824,12 +1055,26 @@ func _update_autocomplete() -> void:
 						matches.append(_entry.text.substr(0, _entry.text.length() - argv[last_arg].length()) + str(value))
 				matches.sort()
 				_autocomplete_matches.append_array(matches)
-			# History
-			if _options.autocomplete_use_history_with_matches or \
-			 		len(_autocomplete_matches) == 0:
-				for i in range(_history.size() - 1, -1, -1):
-					if _history[i].begins_with(_entry.text):
-						_autocomplete_matches.append(_history[i])
+		elif last_arg == 0:
+			# Command name or root group
+			for k in get_command_names(true):
+				if k.begins_with(line):
+					_autocomplete_matches.append(k)
+			_autocomplete_matches.sort()
+		elif current_line_val is Dictionary and not current_line_val.is_empty():
+			# command with group
+			var matches: PackedStringArray = []
+			for value in current_line_val.keys():
+					if str(value).begins_with(argv[last_arg]):
+						matches.append(_entry.text.substr(0, _entry.text.length() - argv[last_arg].length()) + str(value))
+			matches.sort()
+			_autocomplete_matches.append_array(matches)
+		# History
+		if _options.autocomplete_use_history_with_matches or \
+		 		len(_autocomplete_matches) == 0:
+			for i in range(_history.size() - 1, -1, -1):
+				if _history[i].begins_with(_entry.text):
+					_autocomplete_matches.append(_history[i])
 
 	if _autocomplete_matches.size() > 0 \
 			and _autocomplete_matches[0].length() > _entry.text.length() \
@@ -848,12 +1093,10 @@ func _clear_autocomplete() -> void:
 func _suggest_similar_command(p_argv: PackedStringArray) -> void:
 	if _silent:
 		return
-	var fuzzy_hit: String = Util.fuzzy_match_string(p_argv[0], 2, get_command_names(true))
+	var fuzzy_hit: String = Util.fuzzy_match_string(" ".join(p_argv), 2, get_command_names(true, true))
 	if fuzzy_hit:
 		info(format_tip("Did you mean %s? ([b]TAB[/b] to fill)" % [format_name(fuzzy_hit)]))
-		var argv := p_argv.duplicate()
-		argv[0] = fuzzy_hit
-		var suggest_command: String = " ".join(argv)
+		var suggest_command: String = fuzzy_hit
 		suggest_command = suggest_command.strip_edges()
 		_autocomplete_matches.append(suggest_command)
 
@@ -862,33 +1105,129 @@ func _suggest_similar_command(p_argv: PackedStringArray) -> void:
 func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 	if _silent:
 		return
-	var argv: PackedStringArray
-	var command_name: String = p_argv[0]
-	command_name = get_alias_argv(command_name)[0]
-	var corrected := false
-
+	var args_only: Array = _get_args_from_array(p_argv)
+	var usage_key: Array = p_argv.slice(0, p_argv.size() - args_only.size())
+	var argv: PackedStringArray = PackedStringArray(usage_key)
 	argv.resize(p_argv.size())
-	argv[0] = command_name
-	for i in range(1, p_argv.size()):
+	var command_name: String = p_argv[0]
+	var corrected := false
+	for i in range(args_only.size()):
 		var accepted_values = []
-		var key := [command_name, i]
+		var key = usage_key.duplicate()
+		var arg_autocomplete_index: int = i + 1
+		key.append(arg_autocomplete_index)
 		var source: Callable = _argument_autocomplete_sources.get(key, Callable())
 		if source.is_valid():
 			accepted_values = source.call()
+		# TODO: Support validation for autocomplete of command groups
 		if accepted_values == null or not _validate_autocomplete_result(accepted_values, command_name):
 			continue
-		var fuzzy_hit: String = Util.fuzzy_match_string(p_argv[i], 2, accepted_values)
+		var fuzzy_hit: String = Util.fuzzy_match_string(args_only[i], 2, accepted_values)
 		if not fuzzy_hit.is_empty():
-			argv[i] = fuzzy_hit
+			argv[i + usage_key.size()] = fuzzy_hit
 			corrected = true
 		else:
-			argv[i] = p_argv[i]
+			argv[i] = p_argv[i + usage_key.size()]
 	if corrected:
 		info(format_tip("Did you mean \"%s %s\"? ([b]TAB[/b] to fill)" % [format_name(command_name), " ".join(argv.slice(1))]))
 		var suggest_command: String = " ".join(argv)
 		suggest_command = suggest_command.strip_edges()
 		_autocomplete_matches.append(suggest_command)
 
+
+# *** COMMAND GROUPS
+
+## Gets the command group dictionary from an array of strings
+## by traversing commands dictionary. If the entire array is not
+## traversed or no group is found then returns an empty dictionary.
+func _get_command_group_from_array(group_name_chain: Array) -> Dictionary:
+	var current_grouping: Dictionary = _commands
+	var count: int = 0
+	for item in group_name_chain:
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			count += 1
+			current_grouping = current_grouping[item]
+		elif current_grouping.has(item) \
+			and current_grouping.get(item) is Callable:
+				return {}
+	# Return empty if we did not finish getting to the end of the chain
+	if current_grouping == _commands or count != group_name_chain.size():
+		current_grouping = {}
+	return current_grouping
+
+## Checks if the command group dictionary from an array of strings
+## exists by traversing commands dictionary. If the entire array is not
+## traversed or no group is found then returns false
+func _has_command_group_from_array(group_name_chain: Array) -> bool:
+	var current_grouping: Dictionary = _commands
+	var count: int = 0
+	for item in group_name_chain:
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			count += 1
+			current_grouping = current_grouping[item]
+		elif current_grouping.has(item) \
+			and current_grouping.get(item) is Callable:
+				return false
+	# Return empty if we did not finish getting to the end of the chain
+	if current_grouping == _commands or count != group_name_chain.size():
+		return false
+	return true
+
+## Gets the arguments from an array of strings by traversing
+## commands dictionary until a callable is found. 
+## If a callable is found then we know every value after is an argument
+func _get_args_from_array(group_name_chain: Array) -> Array:
+	var current_grouping: Dictionary = _commands
+	var result: Array = []
+	var start_building_args: bool = false
+	for item in group_name_chain:
+		if start_building_args:
+			result.append(item)
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			current_grouping = current_grouping[item]
+		elif current_grouping.has(item) \
+			and current_grouping.get(item) is Callable:
+			start_building_args = true
+	return result
+
+
+## Gets the first callable from an array of strings by 
+## traversing commands dictionary until a callable is found.
+## If no callable is found returns null
+func _get_command_from_array(group_name_chain: Array) -> Variant:
+	var current_grouping: Dictionary = _commands
+	var result: Callable
+	for item in group_name_chain:
+		if current_grouping.has(item) \
+			and current_grouping.get(item) is Dictionary:
+			current_grouping = current_grouping[item]
+		elif current_grouping.has(item) \
+			and current_grouping.get(item) is Callable:
+			return current_grouping.get(item)
+		else:
+			# if neither of the above are true we are requesting something
+			# that doesn't exist
+			return null
+	return null
+
+
+## Rebuilds the argv array to remove prefixed text from
+## command groups that _parse_argv does not expect
+func _rebuild_args_for_command_group(argv: Array) -> Array:
+	var command_group = _commands.duplicate()
+	var args_rebuilt: Array = []
+	var rebuild_args: bool = false
+	for val in argv:
+		if command_group.get(val) is Callable:
+			rebuild_args = true
+		elif command_group.get(val) is Dictionary:
+			command_group = command_group.get(val)
+		if rebuild_args:
+			args_rebuilt.append(val)
+	return args_rebuilt
 
 # *** MISC
 
@@ -934,6 +1273,44 @@ func _validate_callable(p_callable: Callable) -> bool:
 			push_error("LimboConsole: Unsupported argument type: %s is %s" % [arg.name, type_string(arg.type)])
 			ret = false
 	return ret
+
+## Validates a command group 
+func _validate_command_group(p_dict: Dictionary) -> bool:
+	var ret =  true
+	for key in p_dict.keys():
+		var value = p_dict.get(key)
+		if value is Dictionary:
+			if not _validate_command_group(value):
+				push_error("LimboConsole: Failed to register command group: %s" % [key])
+				ret = false
+		elif value is Callable:
+			if not _validate_callable(value):
+				ret = false
+	return ret
+
+
+## Validates that the description being registered has a command 
+## or a command group that is registered
+func _validate_group_description(cmd_chain: Array) -> bool:
+	var cmd_callable = _get_command_from_array(cmd_chain)
+	if cmd_callable:
+		return true
+	var cmd_group = _get_command_group_from_array(cmd_chain)
+	if cmd_group:
+		return true
+	return false
+
+
+## Prints the string as a sentence to the console
+func print_sentence(desc_line: String):
+	# TODO: Discuss changing to this instead of the below
+	#desc_line = "Description: %s" % [desc_line]
+	#print_line(desc_line)
+	if not desc_line.is_empty():
+		desc_line[0] = desc_line[0].capitalize()
+		if desc_line.right(1) != ".":
+			desc_line += "."
+		print_line(desc_line)
 
 
 func _validate_autocomplete_result(p_result: Variant, p_command: String) -> bool:
