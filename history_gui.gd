@@ -118,8 +118,9 @@ func _init() -> void:
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_init_theme()
 
-	# Create first label, this is gets set to placeholder text to determine
-	# the display size once this node is _ready()
+	# Create first label, and set placeholder text to determine the display size
+	# once this node is _ready(). There should always be one label at minimum
+	# anyways since this search is usless without a way to show results.
 	var new_item = Label.new()
 	new_item.size_flags_vertical = Control.SIZE_SHRINK_END
 	new_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -155,6 +156,8 @@ func _update_highlight():
 
 	var style = StyleBoxFlat.new()
 	style.bg_color = _highlight_color
+	
+	# Always clear out the highlight of the last label
 	if is_instance_valid(_last_highlighted_label):
 		_last_highlighted_label.remove_theme_stylebox_override("normal")
 
@@ -274,14 +277,21 @@ func _calculate_display_count():
 	if _display_count != display_count and display_count != 0 and display_count > _display_count:
 		_display_count = (display_count as int)
 
-	# Update first label and then the remaining new labels
+	# Since the labels are going from the bottom to the top, the label
+	# coordinates are offset from the bottom by label size.
+	# The first label already exists, so it's handlded by itself
 	_history_labels[0].position.y = size.y - label_size_y
 	_history_labels[0].set_size(Vector2(label_size_x, label_size_y))
+	# The remaining labels may or may not exist already, create them 
 	for i in range(0, _display_count - _history_labels.size()):
 		var new_item = Label.new()
 		new_item.size_flags_vertical = Control.SIZE_SHRINK_END
 		new_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		new_item.position.y = size.y - (i + 2) * label_size_y
+		
+		# The +1 is due to the labels going upwards from the bottom, otherwise 
+		# their position will be 1 row lower than they should be
+		var position_offset = _history_labels.size() + 1
+		new_item.position.y = size.y - (position_offset * label_size_y)
 		new_item.set_size(Vector2(label_size_x, label_size_y))
 		_history_labels.append(new_item)
 		add_child(new_item)
