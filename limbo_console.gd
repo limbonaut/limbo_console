@@ -25,7 +25,7 @@ var enabled: bool = true:
 			_hide_console()
 
 var _control: Control
-var _history_gui : HistoryGui
+var _history_gui: HistoryGui
 var _control_block: Control
 var _output: RichTextLabel
 var _entry: CommandEntry
@@ -123,10 +123,11 @@ func handle_command_input(p_event: InputEvent):
 	if handled:
 		get_viewport().set_input_as_handled()
 
+
 func handle_history_input(p_event: InputEvent):
-	# Make sure history GUI has most up-to-date 
+	# Make sure history GUI has most up-to-date
 	_history_gui.set_command_history(_history)
-	
+
 	# Allow tab complete (reverse)
 	if p_event.is_action_pressed("limbo_auto_complete_reverse"):
 		_reverse_autocomplete()
@@ -139,9 +140,10 @@ func handle_history_input(p_event: InputEvent):
 	elif p_event is InputEventKey:
 		_history_gui.search(_entry.text)
 		_entry.grab_focus()
-	
+
 	# Make sure entry is always focused
 	_entry.grab_focus()
+
 
 func _input(p_event: InputEvent) -> void:
 	if p_event.is_action_pressed("limbo_console_toggle"):
@@ -205,7 +207,8 @@ func toggle_console() -> void:
 		close_console()
 	else:
 		open_console()
-		
+
+
 func toggle_history() -> void:
 	_history_gui.set_visibility(not _history_gui.visible)
 	# Whenever the history gui becomes visible, make sure it has the latest
@@ -213,6 +216,7 @@ func toggle_history() -> void:
 	if _history_gui.visible:
 		_history_gui.set_command_history(_history)
 		_history_gui.search(_entry.text)
+
 
 ## Clears all messages in the console.
 func clear_console() -> void:
@@ -569,10 +573,10 @@ func _build_gui() -> void:
 	vbox.add_child(_entry)
 
 	_control.modulate = Color(1.0, 1.0, 1.0, _options.opacity)
-	
+
 	_history_gui = HistoryGui.new()
 	_output.add_child(_history_gui)
-	_history_gui.visible = false;
+	_history_gui.visible = false
 
 
 func _init_theme() -> void:
