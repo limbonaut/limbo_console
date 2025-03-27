@@ -161,9 +161,8 @@ func _update_highlight():
 	if _filter_results.size() <= 0:
 		return
 
-	var highlight_index = _sub_index
-	_history_labels[highlight_index].add_theme_stylebox_override("normal", style)
-	_last_highlighted_label = _history_labels[highlight_index]
+	_history_labels[_sub_index].add_theme_stylebox_override("normal", style)
+	_last_highlighted_label = _history_labels[_sub_index]
 
 
 ## Initialize the theme and color variables
