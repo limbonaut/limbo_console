@@ -1011,7 +1011,9 @@ func _push_history(p_line: String) -> void:
 func _on_entry_text_submitted(p_command: String) -> void:
 	if _history_gui.visible:
 		_history_gui.visible = false
+		_clear_autocomplete()
 		_fill_entry(_history_gui.get_current_text())
+		_update_autocomplete()
 	else:
 		_clear_autocomplete()
 		_fill_entry("")
