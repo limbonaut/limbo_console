@@ -45,7 +45,7 @@ func set_command_history(commands: Array):
 
 
 ## Add a command to the history to search through
-func add_command(command):
+func add_command(command: String):
 	_command_history.append(command)
 	_update_highlight()
 
