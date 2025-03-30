@@ -16,9 +16,9 @@ var _command = "<placeholder>"  # Needs default value so first search always pro
 var _command_history: Array  # Command history to search throgh
 var _filter_results: Array  # Most recent results of performing a search for the _command in _command_history
 
-var _display_count = 0  # Number of history items to display in search
-var _offset = 0  # The offset _filter_results
-var _sub_index = 0  # The highlight index
+var _display_count: int = 0  # Number of history items to display in search
+var _offset: int = 0  # The offset _filter_results
+var _sub_index: int = 0  # The highlight index
 
 # Theme Colors [TODO: Flesh out theme colors]
 var _highlight_color: Color
@@ -29,7 +29,7 @@ var _highlight_color: Color
 
 
 ## Set visibility of history search
-func set_visibility(p_visible):
+func set_visibility(p_visible: bool):
 	if not visible and p_visible:
 		_offset = 0
 		_reset_indexes()
@@ -51,7 +51,7 @@ func add_command(command):
 
 
 ## Move cursor downwards
-func decrement_index():
+func _decrement_index():
 	var current_index = _get_current_index()
 	if current_index - 1 < 0:
 		return
@@ -65,7 +65,7 @@ func decrement_index():
 
 
 ## Move cursor upwards
-func increment_index():
+func _increment_index():
 	var current_index = _get_current_index()
 	if current_index + 1 >= _filter_results.size():
 		return
@@ -173,9 +173,8 @@ func _init_theme() -> void:
 	var _loaded_theme: Theme
 	_loaded_theme = load(THEME_DEFAULT)
 
-	const CONSOLE_COLORS_THEME_TYPE := &"ConsoleColors"
 	_highlight_color = _loaded_theme.get_color(
-		&"history_highlight_color", CONSOLE_COLORS_THEME_TYPE
+		&"history_highlight_color", &"ConsoleColors"
 	)
 
 
@@ -245,9 +244,9 @@ func _input(event):
 	# Scroll up/down on mouse wheel up/down
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			increment_index()
+			_increment_index()
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			decrement_index()
+			_decrement_index()
 
 	# Remaining inputs are key press handles
 	if event is not InputEventKey:
@@ -255,10 +254,10 @@ func _input(event):
 
 	# Increment/Decrement index
 	if event.keycode == KEY_UP and event.is_pressed():
-		increment_index()
+		_increment_index()
 		get_viewport().set_input_as_handled()
 	elif event.keycode == KEY_DOWN and event.is_pressed():
-		decrement_index()
+		_decrement_index()
 		get_viewport().set_input_as_handled()
 
 

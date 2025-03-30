@@ -98,10 +98,11 @@ func _exit_tree() -> void:
 	if _options.persist_history:
 		_save_history()
 
-func handle_command_input(p_event: InputEvent):
+
+func _handle_command_input(p_event: InputEvent):
 	var handled := true
 	if not _is_open:
-		pass # Don't accept input while closing console.
+		pass  # Don't accept input while closing console.
 	elif p_event.keycode == KEY_UP:
 		_hist_idx += 1
 		_fill_entry_from_history()
@@ -124,7 +125,7 @@ func handle_command_input(p_event: InputEvent):
 		get_viewport().set_input_as_handled()
 
 
-func handle_history_input(p_event: InputEvent):
+func _handle_history_input(p_event: InputEvent):
 	# Make sure history GUI has most up-to-date
 	_history_gui.set_command_history(_history)
 
@@ -154,9 +155,9 @@ func _input(p_event: InputEvent) -> void:
 		toggle_history()
 		get_viewport().set_input_as_handled()
 	elif _history_gui.visible and p_event is InputEventKey:
-		handle_history_input(p_event)
+		_handle_history_input(p_event)
 	elif _control.visible and p_event is InputEventKey and p_event.is_pressed():
-		handle_command_input(p_event)
+		_handle_command_input(p_event)
 
 
 func _process(delta: float) -> void:
