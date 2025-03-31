@@ -13,7 +13,7 @@ var _scroll_bar_width = 12
 
 # Indexing Results
 var _command = "<placeholder>"  # Needs default value so first search always processes
-var _command_history: PackedStringArray  # Command history to search throgh
+var _command_history: PackedStringArray  # Command history to search through
 var _filter_results: Array  # Most recent results of performing a search for the _command in _command_history
 
 var _display_count: int = 0  # Number of history items to display in search
