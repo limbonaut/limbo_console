@@ -13,7 +13,7 @@ var _scroll_bar_width = 12
 
 # Indexing Results
 var _command = "<placeholder>"  # Needs default value so first search always processes
-var _command_history: Array  # Command history to search throgh
+var _command_history: PackedStringArray  # Command history to search throgh
 var _filter_results: Array  # Most recent results of performing a search for the _command in _command_history
 
 var _display_count: int = 0  # Number of history items to display in search
@@ -31,23 +31,20 @@ var _highlight_color: Color
 ## Set visibility of history search
 func set_visibility(p_visible: bool):
 	if not visible and p_visible:
-		_offset = 0
-		_reset_indexes()
-		_update_highlight()
-		_update_scroll_list()
+		# It's possible the _command_history has updated while not visible
+		# make sure the filtered list is up-to-date
+		_search_and_filter()
 	visible = p_visible
 
 
 ## Set the command history to search through
-func set_command_history(commands: Array):
+func set_command_history(commands: PackedStringArray):
 	_command_history = commands
-	_update_highlight()
 
 
 ## Add a command to the history to search through
 func add_command(command: String):
 	_command_history.append(command)
-	_update_highlight()
 
 
 ## Move cursor downwards
@@ -80,7 +77,7 @@ func _increment_index():
 
 ## Get the current selected text
 func get_current_text():
-	var current_text = ""
+	var current_text = _command
 	if _history_labels.size() != 0 and _filter_results.size() != 0:
 		current_text = _filter_results[_get_current_index()]
 	return current_text
@@ -92,19 +89,8 @@ func search(command):
 	if command == _command:
 		return
 	_command = command
-
-	# Empty string so show all results
-	if _command.length() == 0:
-		_filter_results = _command_history
-
-		# Results are reversed since the list needs to go up instead of down
-		_filter_results.reverse()
-	else:
-		_filter_results = _fuzzy_match(command, _command_history)
-
-	_reset_indexes()
-	_update_scroll_list()
-	_update_highlight()
+	
+	_search_and_filter()
 
 
 ################################################################################
@@ -181,6 +167,12 @@ func _init_theme() -> void:
 ## Fuzzy search function similar to fzf
 static func _fuzzy_match(query: String, items: Array) -> Array:
 	var results = []
+
+	# Don't waste time processing, and create a duplicate as it's expected for this
+	# function to return a new array
+	if len(query) == 0:
+		results = items.duplicate()
+		return results
 
 	for item in items:
 		var score = _compute_match_score(query.to_lower(), item.to_lower())
@@ -300,9 +292,7 @@ func _calculate_display_count():
 	_scroll_bar.size.y = size.y
 	_scroll_bar.position.x = label_size_x
 
-	_reset_indexes()
-	_update_highlight()
-	_update_scroll_list()
+	_reset_history_to_beginning()
 
 
 func _update_scroll_bar():
@@ -311,3 +301,22 @@ func _update_scroll_bar():
 		_scroll_bar.max_value = max_size
 		_scroll_bar.page = _display_count
 		_scroll_bar.set_value_no_signal((max_size - _display_count) - _offset)
+
+
+## Reset indexes to 0, scroll to the bottom of the history list, and update visuals
+func _reset_history_to_beginning():
+	_reset_indexes()
+	_update_highlight()
+	_update_scroll_list()
+
+
+## Search for the current command and filter the results
+func _search_and_filter():
+	_filter_results = _fuzzy_match(_command, _command_history)
+
+	# If the filtered results are just the copy of the command history, need to reverse
+	# since the results need to be displayed going up instead of down
+	if len(_filter_results) == len(_command_history):
+		_filter_results.reverse()
+
+	_reset_history_to_beginning()

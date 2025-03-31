@@ -126,8 +126,6 @@ func _handle_command_input(p_event: InputEvent):
 
 
 func _handle_history_input(p_event: InputEvent):
-	# Make sure history GUI has most up-to-date
-	_history_gui.set_command_history(_history)
 
 	# Allow tab complete (reverse)
 	if p_event.is_action_pressed("limbo_auto_complete_reverse"):
@@ -215,7 +213,6 @@ func toggle_history() -> void:
 	# Whenever the history gui becomes visible, make sure it has the latest
 	# history and do an initial search
 	if _history_gui.visible:
-		_history_gui.set_command_history(_history)
 		_history_gui.search(_entry.text)
 
 
@@ -227,6 +224,7 @@ func clear_console() -> void:
 ## Erases the history that is persisted to the disk
 func erase_history() -> void:
 	_history = []
+	_history_gui.set_command_history(_history)
 	var file := FileAccess.open(LimboConsole.HISTORY_FILE, FileAccess.WRITE)
 	if file:
 		file.store_string("")
@@ -576,6 +574,7 @@ func _build_gui() -> void:
 	_control.modulate = Color(1.0, 1.0, 1.0, _options.opacity)
 
 	_history_gui = HistoryGui.new()
+	_history_gui.set_command_history(_history)
 	_output.add_child(_history_gui)
 	_history_gui.visible = false
 
@@ -664,6 +663,7 @@ func _save_history() -> void:
 	var max_lines: int = maxi(_options.history_lines, 0)
 	if _history.size() > max_lines:
 		_history = _history.slice(_history.size() - max_lines)
+		_history_gui.set_command_history(_history)
 
 	var file := FileAccess.open(HISTORY_FILE, FileAccess.WRITE)
 	if not file:
@@ -1006,9 +1006,6 @@ func _push_history(p_line: String) -> void:
 	# Duplicate commands not allowed in history
 	if idx != -1:
 		_history.remove_at(idx)
-	# Only add commands to the history gui once, order doesn't matter
-	else:
-		_history_gui.add_command(p_line)
 	_history.append(p_line)
 	_hist_idx = -1
 
