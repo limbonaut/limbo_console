@@ -42,11 +42,6 @@ func set_command_history(commands: PackedStringArray):
 	_command_history = commands
 
 
-## Add a command to the history to search through
-func add_command(command: String):
-	_command_history.append(command)
-
-
 ## Move cursor downwards
 func _decrement_index():
 	var current_index = _get_current_index()
