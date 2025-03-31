@@ -296,7 +296,7 @@ func _calculate_display_count():
 
 
 func _update_scroll_bar():
-	if (_filter_results.size() > 0) and (_display_count > 0):
+	if _display_count > 0:
 		var max_size = _filter_results.size()
 		_scroll_bar.max_value = max_size
 		_scroll_bar.page = _display_count
