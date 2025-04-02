@@ -36,6 +36,18 @@ func _enter_tree() -> void:
 			"events": [key_event],
 		})
 		do_project_setting_save = true
+	
+	if not ProjectSettings.has_setting("input/limbo_console_search_history"):
+		print("LimboConsole: Adding \"limbo_console_search_history\" input action to project settings...")
+		var key_event = InputEventKey.new()
+		key_event.keycode = KEY_R
+		key_event.ctrl_pressed = true
+		
+		ProjectSettings.set_setting("input/limbo_console_search_history", {
+			"deadzone": 0.5,
+			"events": [key_event],
+		})
+		do_project_setting_save = true
 		
 	if do_project_setting_save:
 		ProjectSettings.save()

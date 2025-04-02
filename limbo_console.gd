@@ -12,6 +12,7 @@ const CommandEntry := preload("res://addons/limbo_console/command_entry.gd")
 const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
 const Util := preload("res://addons/limbo_console/util.gd")
+const HistoryGui := preload("res://addons/limbo_console/history_gui.gd")
 
 ## If false, prevents console from being shown. Commands can still be executed from code.
 var enabled: bool = true:
@@ -24,6 +25,7 @@ var enabled: bool = true:
 			_hide_console()
 
 var _control: Control
+var _history_gui: HistoryGui
 var _control_block: Control
 var _output: RichTextLabel
 var _entry: CommandEntry
@@ -97,34 +99,63 @@ func _exit_tree() -> void:
 		_save_history()
 
 
+func _handle_command_input(p_event: InputEvent):
+	var handled := true
+	if not _is_open:
+		pass  # Don't accept input while closing console.
+	elif p_event.keycode == KEY_UP:
+		_hist_idx += 1
+		_fill_entry_from_history()
+	elif p_event.keycode == KEY_DOWN:
+		_hist_idx -= 1
+		_fill_entry_from_history()
+	elif p_event.is_action_pressed("limbo_auto_complete_reverse"):
+		_reverse_autocomplete()
+	elif p_event.keycode == KEY_TAB:
+		_autocomplete()
+	elif p_event.keycode == KEY_PAGEUP:
+		var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
+		scroll_bar.value -= scroll_bar.page
+	elif p_event.keycode == KEY_PAGEDOWN:
+		var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
+		scroll_bar.value += scroll_bar.page
+	else:
+		handled = false
+	if handled:
+		get_viewport().set_input_as_handled()
+
+
+func _handle_history_input(p_event: InputEvent):
+
+	# Allow tab complete (reverse)
+	if p_event.is_action_pressed("limbo_auto_complete_reverse"):
+		_reverse_autocomplete()
+		get_viewport().set_input_as_handled()
+	# Allow tab complete (forward)
+	elif p_event.keycode == KEY_TAB and p_event.is_pressed():
+		_autocomplete()
+		get_viewport().set_input_as_handled()
+	# Perform search
+	elif p_event is InputEventKey:
+		_history_gui.search(_entry.text)
+		_entry.grab_focus()
+
+	# Make sure entry is always focused
+	_entry.grab_focus()
+
+
 func _input(p_event: InputEvent) -> void:
 	if p_event.is_action_pressed("limbo_console_toggle"):
 		toggle_console()
 		get_viewport().set_input_as_handled()
+	# Check to see if the history gui should open
+	elif _control.visible and p_event.is_action_pressed("limbo_console_search_history"):
+		toggle_history()
+		get_viewport().set_input_as_handled()
+	elif _history_gui.visible and p_event is InputEventKey:
+		_handle_history_input(p_event)
 	elif _control.visible and p_event is InputEventKey and p_event.is_pressed():
-		var handled := true
-		if not _is_open:
-			pass # Don't accept input while closing console.
-		elif p_event.keycode == KEY_UP:
-			_hist_idx += 1
-			_fill_entry_from_history()
-		elif p_event.keycode == KEY_DOWN:
-			_hist_idx -= 1
-			_fill_entry_from_history()
-		elif p_event.is_action_pressed("limbo_auto_complete_reverse"):
-			_reverse_autocomplete()
-		elif p_event.keycode == KEY_TAB:
-			_autocomplete()
-		elif p_event.keycode == KEY_PAGEUP:
-			var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
-			scroll_bar.value -= scroll_bar.page
-		elif p_event.keycode == KEY_PAGEDOWN:
-			var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
-			scroll_bar.value += scroll_bar.page
-		else:
-			handled = false
-		if handled:
-			get_viewport().set_input_as_handled()
+		_handle_command_input(p_event)
 
 
 func _process(delta: float) -> void:
@@ -162,6 +193,7 @@ func close_console() -> void:
 	if enabled:
 		_is_open = false
 		set_process(true)
+		_history_gui.visible = false
 		# _hide_console() is called in _process()
 
 
@@ -176,6 +208,14 @@ func toggle_console() -> void:
 		open_console()
 
 
+func toggle_history() -> void:
+	_history_gui.set_visibility(not _history_gui.visible)
+	# Whenever the history gui becomes visible, make sure it has the latest
+	# history and do an initial search
+	if _history_gui.visible:
+		_history_gui.search(_entry.text)
+
+
 ## Clears all messages in the console.
 func clear_console() -> void:
 	_output.text = ""
@@ -184,6 +224,7 @@ func clear_console() -> void:
 ## Erases the history that is persisted to the disk
 func erase_history() -> void:
 	_history = []
+	_history_gui.set_command_history(_history)
 	var file := FileAccess.open(LimboConsole.HISTORY_FILE, FileAccess.WRITE)
 	if file:
 		file.store_string("")
@@ -532,6 +573,11 @@ func _build_gui() -> void:
 
 	_control.modulate = Color(1.0, 1.0, 1.0, _options.opacity)
 
+	_history_gui = HistoryGui.new()
+	_history_gui.set_command_history(_history)
+	_output.add_child(_history_gui)
+	_history_gui.visible = false
+
 
 func _init_theme() -> void:
 	var theme: Theme
@@ -617,6 +663,7 @@ func _save_history() -> void:
 	var max_lines: int = maxi(_options.history_lines, 0)
 	if _history.size() > max_lines:
 		_history = _history.slice(_history.size() - max_lines)
+		_history_gui.set_command_history(_history)
 
 	var file := FileAccess.open(HISTORY_FILE, FileAccess.WRITE)
 	if not file:
@@ -961,6 +1008,7 @@ func _fill_entry_from_history() -> void:
 
 func _push_history(p_line: String) -> void:
 	var idx: int = _history.find(p_line)
+	# Duplicate commands not allowed in history
 	if idx != -1:
 		_history.remove_at(idx)
 	_history.append(p_line)
@@ -968,10 +1016,16 @@ func _push_history(p_line: String) -> void:
 
 
 func _on_entry_text_submitted(p_command: String) -> void:
-	_clear_autocomplete()
-	_fill_entry("")
-	execute_command(p_command)
-	_update_autocomplete()
+	if _history_gui.visible:
+		_history_gui.visible = false
+		_clear_autocomplete()
+		_fill_entry(_history_gui.get_current_text())
+		_update_autocomplete()
+	else:
+		_clear_autocomplete()
+		_fill_entry("")
+		execute_command(p_command)
+		_update_autocomplete()
 
 
 func _on_entry_text_changed() -> void:
