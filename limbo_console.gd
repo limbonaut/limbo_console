@@ -331,9 +331,6 @@ func get_command_description(p_name: String) -> String:
 
 ## Registers an alias for a command (may include arguments).
 func add_alias(p_alias: String, p_command_to_run: String) -> void:
-	if not p_alias.is_valid_identifier():
-		error("Invalid alias identifier.")
-		return
 	# It should be possible to override commands and existing aliases.
 	# It should be possible to create aliases for commands that are not yet registered,
 	# because some commands may be registered by local-to-scene scripts.
@@ -357,6 +354,7 @@ func get_aliases() -> PackedStringArray:
 
 ## Returns the alias's actual command as an argument vector.
 func get_alias_argv(p_alias: String) -> PackedStringArray:
+	# TODO: I believe _aliases values are stored as an array so this iis unneccessary?
 	return _aliases.get(p_alias, [p_alias]).duplicate()
 
 
@@ -702,14 +700,28 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 		argv.append(line.substr(start, cur))
 	return argv
 
-
-## Substitutes alias with its real command in argv.
+## Substitutes an array of strings with its real command in argv
+## will recursively expand aliases until no aliases are left
 func _expand_alias(p_argv: PackedStringArray) -> PackedStringArray:
-	if p_argv.size() > 0 and _aliases.has(p_argv[0]):
-		return _aliases.get(p_argv[0]) + p_argv.slice(1)
-	else:
+	var arg_duplicated = Array(p_argv)
+	var val: Array = []
+	var max_depth: int = 1000
+	var current_depth: int = 0
+	while not arg_duplicated.is_empty() and current_depth != max_depth:
+		var current: String = arg_duplicated.pop_front()
+		var alias: Array = _aliases.get(current, [])
+		current_depth += 1
+		if not alias.is_empty():
+			# we need to insert in reverse order
+			alias.reverse()
+			for item in alias:
+				arg_duplicated.insert(0, item)
+		else:
+			val.append(current)
+	if current_depth >= max_depth:
+		push_error("LimboConsole: Max depth for alias reached. Is there a loop in your aliasing?")
 		return p_argv
-
+	return val
 
 ## Converts arguments from String to types expected by the callable, and returns true if successful.
 ## The converted values are placed into a separate r_args array.
