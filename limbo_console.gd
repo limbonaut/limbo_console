@@ -272,7 +272,7 @@ func register_command(p_func: Callable, p_name: String = "", p_desc: String = ""
 	if p_name and not p_name.is_valid_ascii_identifier():
 		push_error("LimboConsole: Failed to register command: %s. A command must be a valid ascii identifier" % [p_name])
 		return
-	
+
 	if not _validate_callable(p_func):
 		push_error("LimboConsole: Failed to register command: %s" % [p_func if p_name.is_empty() else p_name])
 		return
@@ -574,8 +574,8 @@ func _build_gui() -> void:
 	_control.modulate = Color(1.0, 1.0, 1.0, _options.opacity)
 
 	_history_gui = HistoryGui.new()
-	_history_gui.set_command_history(_history)
 	_output.add_child(_history_gui)
+	_history_gui.set_command_history(_history)
 	_history_gui.visible = false
 
 
@@ -832,7 +832,7 @@ func _autocomplete() -> void:
 		_autocomplete_matches.remove_at(0)
 		_autocomplete_matches.push_back(match_str)
 		_update_autocomplete()
-		
+
 func _reverse_autocomplete():
 	if not _autocomplete_matches.is_empty():
 		var match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
@@ -841,7 +841,7 @@ func _reverse_autocomplete():
 		match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
 		_fill_entry(match_str)
 		_update_autocomplete()
-		
+
 ## Updates autocomplete suggestions and hint based on user input.
 func _update_autocomplete() -> void:
 	var argv: PackedStringArray = _expand_alias(_parse_command_line(_entry.text))
@@ -974,7 +974,7 @@ func _validate_callable(p_callable: Callable) -> bool:
 		and p_callable.get_bound_arguments_count() > 0:
 			push_error("LimboConsole: bound anonymous functions are unsupported")
 			return false
-		
+
 	var ret := true
 	for arg in method_info.args:
 		if not arg.type in [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_VECTOR2, TYPE_VECTOR2I, TYPE_VECTOR3, TYPE_VECTOR3I, TYPE_VECTOR4, TYPE_VECTOR4I]:

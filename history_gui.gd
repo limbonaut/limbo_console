@@ -1,18 +1,14 @@
 extends Panel
 
-################################################################################
-# Variables
-################################################################################
 
 # Visual Elements
-const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
 var _last_highlighted_label: Label
 var _history_labels: Array[Label]
 var _scroll_bar: VScrollBar
-var _scroll_bar_width = 12
+var _scroll_bar_width: int = 12
 
 # Indexing Results
-var _command = "<placeholder>"  # Needs default value so first search always processes
+var _command: String = "<placeholder>"  # Needs default value so first search always processes
 var _command_history: PackedStringArray  # Command history to search through
 var _filter_results: Array  # Most recent results of performing a search for the _command in _command_history
 
@@ -20,89 +16,22 @@ var _display_count: int = 0  # Number of history items to display in search
 var _offset: int = 0  # The offset _filter_results
 var _sub_index: int = 0  # The highlight index
 
-# Theme Colors [TODO: Flesh out theme colors]
+# Theme Cache
 var _highlight_color: Color
 
-################################################################################
-# Public Functions
-################################################################################
 
-
-## Set visibility of history search
-func set_visibility(p_visible: bool):
-	if not visible and p_visible:
-		# It's possible the _command_history has updated while not visible
-		# make sure the filtered list is up-to-date
-		_search_and_filter()
-	visible = p_visible
-
-
-## Set the command history to search through
-func set_command_history(commands: PackedStringArray):
-	_command_history = commands
-
-
-## Move cursor downwards
-func _decrement_index():
-	var current_index = _get_current_index()
-	if current_index - 1 < 0:
-		return
-
-	if _sub_index == 0:
-		_offset -= 1
-		_update_scroll_list()
-	else:
-		_sub_index -= 1
-		_update_highlight()
-
-
-## Move cursor upwards
-func _increment_index():
-	var current_index = _get_current_index()
-	if current_index + 1 >= _filter_results.size():
-		return
-
-	if _sub_index >= _display_count - 1:
-		_offset += 1
-		_update_scroll_list()
-	else:
-		_sub_index += 1
-		_update_highlight()
-
-
-## Get the current selected text
-func get_current_text():
-	var current_text = _command
-	if _history_labels.size() != 0 and _filter_results.size() != 0:
-		current_text = _filter_results[_get_current_index()]
-	return current_text
-
-
-## Search for the command in the history
-func search(command):
-	# Don't process if we used the same command before
-	if command == _command:
-		return
-	_command = command
-	
-	_search_and_filter()
-
-
-################################################################################
-# Private Functions
-################################################################################
+# *** GODOT / VIRTUAL
 
 
 func _init() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_init_theme()
 
 	# Create first label, and set placeholder text to determine the display size
 	# once this node is _ready(). There should always be one label at minimum
 	# anyways since this search is usless without a way to show results.
-	var new_item = Label.new()
+	var new_item := Label.new()
 	new_item.size_flags_vertical = Control.SIZE_SHRINK_END
 	new_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	new_item.text = "<Placeholder>"
@@ -113,121 +42,15 @@ func _init() -> void:
 	add_child(_scroll_bar)
 
 
-## Update the text in the scroll list to match current offset and filtered results
-func _update_scroll_list():
-	# Iterate through the number of displayed history items
-	for i in range(0, _display_count):
-		var filter_index = _offset + i
+func _ready() -> void:
+	# The sizing of the labels is dependant on visiblity.
+	visibility_changed.connect(_calculate_display_count)
+	_scroll_bar.scrolling.connect(_scroll_bar_scrolled)
 
-		# Default empty
-		_history_labels[i].text = ""
-
-		# Set non empty if in range
-		var index_in_range = filter_index < _filter_results.size()
-		if index_in_range:
-			_history_labels[i].text += _filter_results[filter_index]
-
-	_update_scroll_bar()
+	_highlight_color = get_theme_color(&"history_highlight_color", &"ConsoleColors")
 
 
-## Highlight the subindex
-func _update_highlight():
-	if _sub_index < 0 or _command_history.size() == 0:
-		return
-
-	var style = StyleBoxFlat.new()
-	style.bg_color = _highlight_color
-	
-	# Always clear out the highlight of the last label
-	if is_instance_valid(_last_highlighted_label):
-		_last_highlighted_label.remove_theme_stylebox_override("normal")
-
-	if _filter_results.size() <= 0:
-		return
-
-	_history_labels[_sub_index].add_theme_stylebox_override("normal", style)
-	_last_highlighted_label = _history_labels[_sub_index]
-
-
-## Initialize the theme and color variables
-func _init_theme() -> void:
-	var _loaded_theme: Theme
-	_loaded_theme = load(THEME_DEFAULT)
-
-	_highlight_color = _loaded_theme.get_color(
-		&"history_highlight_color", &"ConsoleColors"
-	)
-
-
-## Fuzzy search function similar to fzf
-static func _fuzzy_match(query: String, items: Array) -> Array:
-	var results = []
-
-	# Don't waste time processing, and create a duplicate as it's expected for this
-	# function to return a new array
-	if len(query) == 0:
-		results = items.duplicate()
-		return results
-
-	for item in items:
-		var score = _compute_match_score(query.to_lower(), item.to_lower())
-		if score > 0:
-			results.append({"item": item, "score": score})
-
-	# Sort results by highest score
-	results.sort_custom(func(a, b): return a.score > b.score)
-
-	return results.map(func(entry): return entry.item)
-
-
-## Scoring function for fuzzy matching
-static func _compute_match_score(query: String, target: String) -> int:
-	var score = 0
-	var query_index = 0
-
-	# Exact match. give unbeatable score
-	if query == target:
-		score = 99999
-		return score
-
-	for i in range(target.length()):
-		if query_index < query.length() and target[i] == query[query_index]:
-			score += 10  # Base score for a match
-			if i == 0 or target[i - 1] == " ":  # Bonus for word start
-				score += 5
-			query_index += 1
-			if query_index == query.length():
-				break
-
-	# Ensure full query matches
-	return score if query_index == query.length() else 0
-
-
-## Get the current index of the selected item
-func _get_current_index():
-	return _offset + _sub_index
-
-
-## Reset offset and sub_indexes to scroll list back to bottom
-func _reset_indexes():
-	_offset = 0
-	_sub_index = 0
-
-
-func _ready():
-	# The sizing of the labels is dependant on visiblity
-	connect("visibility_changed", _calculate_display_count)
-	_scroll_bar.connect("scrolling", _scroll_bar_scrolled)
-
-
-## When the scrollbar has been scrolled (by mouse), scroll the list
-func _scroll_bar_scrolled():
-	_offset = _scroll_bar.max_value - _display_count - _scroll_bar.value
-	_update_highlight()
-	_update_scroll_list()
-
-
-func _input(event):
+func _input(event: InputEvent) -> void:
 	# Scroll up/down on mouse wheel up/down
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -248,18 +71,182 @@ func _input(event):
 		get_viewport().set_input_as_handled()
 
 
+# *** PUBLIC
+
+
+## Set visibility of history search
+func set_visibility(p_visible: bool) -> void:
+	if not visible and p_visible:
+		# It's possible the _command_history has updated while not visible
+		# make sure the filtered list is up-to-date
+		_search_and_filter()
+	visible = p_visible
+
+
+## Set the command history to search through
+func set_command_history(commands: PackedStringArray) -> void:
+	_command_history = commands
+
+
+## Move cursor downwards
+func _decrement_index() -> void:
+	var current_index: int = _get_current_index()
+	if current_index - 1 < 0:
+		return
+
+	if _sub_index == 0:
+		_offset -= 1
+		_update_scroll_list()
+	else:
+		_sub_index -= 1
+		_update_highlight()
+
+
+## Move cursor upwards
+func _increment_index() -> void:
+	var current_index: int = _get_current_index()
+	if current_index + 1 >= _filter_results.size():
+		return
+
+	if _sub_index >= _display_count - 1:
+		_offset += 1
+		_update_scroll_list()
+	else:
+		_sub_index += 1
+		_update_highlight()
+
+
+## Get the current selected text
+func get_current_text() -> String:
+	var current_text: String = _command
+	if _history_labels.size() != 0 and _filter_results.size() != 0:
+		current_text = _filter_results[_get_current_index()]
+	return current_text
+
+
+## Search for the command in the history
+func search(command: String) -> void:
+	# Don't process if we used the same command before
+	if command == _command:
+		return
+	_command = command
+
+	_search_and_filter()
+
+
+# *** PRIVATE
+
+
+## Update the text in the scroll list to match current offset and filtered results
+func _update_scroll_list() -> void:
+	# Iterate through the number of displayed history items
+	for i in range(0, _display_count):
+		var filter_index: int = _offset + i
+
+		# Default empty
+		_history_labels[i].text = ""
+
+		# Set non empty if in range
+		var index_in_range: bool = filter_index < _filter_results.size()
+		if index_in_range:
+			_history_labels[i].text += _filter_results[filter_index]
+
+	_update_scroll_bar()
+
+
+## Highlight the subindex
+func _update_highlight() -> void:
+	if _sub_index < 0 or _command_history.size() == 0:
+		return
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = _highlight_color
+
+	# Always clear out the highlight of the last label
+	if is_instance_valid(_last_highlighted_label):
+		_last_highlighted_label.remove_theme_stylebox_override("normal")
+
+	if _filter_results.size() <= 0:
+		return
+
+	_history_labels[_sub_index].add_theme_stylebox_override("normal", style)
+	_last_highlighted_label = _history_labels[_sub_index]
+
+
+## Fuzzy search function similar to fzf
+static func _fuzzy_match(query: String, items: Array) -> Array:
+	var results: Array = []
+
+	# Don't waste time processing, and create a duplicate as it's expected for this
+	# function to return a new array
+	if len(query) == 0:
+		results = items.duplicate()
+		return results
+
+	for item in items:
+		var score: int = _compute_match_score(query.to_lower(), item.to_lower())
+		if score > 0:
+			results.append({"item": item, "score": score})
+
+	# Sort results by highest score
+	results.sort_custom(func(a, b): return a.score > b.score)
+
+	return results.map(func(entry): return entry.item)
+
+
+## Scoring function for fuzzy matching
+static func _compute_match_score(query: String, target: String) -> int:
+	var score: int = 0
+	var query_index: int = 0
+
+	# Exact match. give unbeatable score
+	if query == target:
+		score = 99999
+		return score
+
+	for i in range(target.length()):
+		if query_index < query.length() and target[i] == query[query_index]:
+			score += 10  # Base score for a match
+			if i == 0 or target[i - 1] == " ":  # Bonus for word start
+				score += 5
+			query_index += 1
+			if query_index == query.length():
+				break
+
+	# Ensure full query matches
+	return score if query_index == query.length() else 0
+
+
+## Get the current index of the selected item
+func _get_current_index() -> int:
+	return _offset + _sub_index
+
+
+## Reset offset and sub_indexes to scroll list back to bottom
+func _reset_indexes() -> void:
+	_offset = 0
+	_sub_index = 0
+
+
+## When the scrollbar has been scrolled (by mouse), scroll the list
+func _scroll_bar_scrolled() -> void:
+	_offset = _scroll_bar.max_value - _display_count - _scroll_bar.value
+	_update_highlight()
+	_update_scroll_list()
+
+
 func _calculate_display_count():
 	if not visible:
 		return
 	# The display count is finnicky to get right due to the label needing to be
 	# rendered so the fize can be determined. This gets the job done, it ain't
 	# pretty, but it works
-	var max_y = size.y
+	var max_y: float = size.y
 
-	var label_size_y = (_history_labels[0] as Control).size.y
-	var label_size_x = size.x - _scroll_bar_width
+	var label_size_y: float = (_history_labels[0] as Control).size.y
+	var label_size_x: float = size.x - _scroll_bar_width
 
-	var display_count = max_y as int / label_size_y as int
+	var display_count: int = int(max_y) / int(label_size_y)
 	if _display_count != display_count and display_count != 0 and display_count > _display_count:
 		_display_count = (display_count as int)
 
@@ -268,15 +255,15 @@ func _calculate_display_count():
 	# The first label already exists, so it's handlded by itself
 	_history_labels[0].position.y = size.y - label_size_y
 	_history_labels[0].set_size(Vector2(label_size_x, label_size_y))
-	# The remaining labels may or may not exist already, create them 
+	# The remaining labels may or may not exist already, create them
 	for i in range(0, _display_count - _history_labels.size()):
-		var new_item = Label.new()
+		var new_item := Label.new()
 		new_item.size_flags_vertical = Control.SIZE_SHRINK_END
 		new_item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		
-		# The +1 is due to the labels going upwards from the bottom, otherwise 
+
+		# The +1 is due to the labels going upwards from the bottom, otherwise
 		# their position will be 1 row lower than they should be
-		var position_offset = _history_labels.size() + 1
+		var position_offset: int = _history_labels.size() + 1
 		new_item.position.y = size.y - (position_offset * label_size_y)
 		new_item.set_size(Vector2(label_size_x, label_size_y))
 		_history_labels.append(new_item)
@@ -290,23 +277,23 @@ func _calculate_display_count():
 	_reset_history_to_beginning()
 
 
-func _update_scroll_bar():
+func _update_scroll_bar() -> void:
 	if _display_count > 0:
-		var max_size = _filter_results.size()
+		var max_size: int = _filter_results.size()
 		_scroll_bar.max_value = max_size
 		_scroll_bar.page = _display_count
 		_scroll_bar.set_value_no_signal((max_size - _display_count) - _offset)
 
 
 ## Reset indexes to 0, scroll to the bottom of the history list, and update visuals
-func _reset_history_to_beginning():
+func _reset_history_to_beginning() -> void:
 	_reset_indexes()
 	_update_highlight()
 	_update_scroll_list()
 
 
 ## Search for the current command and filter the results
-func _search_and_filter():
+func _search_and_filter() -> void:
 	_filter_results = _fuzzy_match(_command, _command_history)
 
 	# If the filtered results are just the copy of the command history, need to reverse
