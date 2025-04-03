@@ -173,28 +173,24 @@ func _update_highlight() -> void:
 	_last_highlighted_label = _history_labels[_sub_index]
 
 
-## Fuzzy search function similar to fzf
-static func _fuzzy_match(query: String, items: Array) -> Array:
+## Fuzzy search function similar to fzf.
+static func _fuzzy_match(p_query: String, p_items: PackedStringArray) -> Array:
 	var results: Array = []
 
-	# Don't waste time processing, and create a duplicate as it's expected for this
-	# function to return a new array
-	if len(query) == 0:
-		results = items.duplicate()
-		return results
+	if len(p_query) == 0:
+		return Array(p_items)
 
-	for item in items:
-		var score: int = _compute_match_score(query.to_lower(), item.to_lower())
+	for item: String in p_items:
+		var score: int = _compute_match_score(p_query.to_lower(), item.to_lower())
 		if score > 0:
 			results.append({"item": item, "score": score})
 
-	# Sort results by highest score
 	results.sort_custom(func(a, b): return a.score > b.score)
 
 	return results.map(func(entry): return entry.item)
 
 
-## Scoring function for fuzzy matching
+## Scoring function for fuzzy matching.
 static func _compute_match_score(query: String, target: String) -> int:
 	var score: int = 0
 	var query_index: int = 0
