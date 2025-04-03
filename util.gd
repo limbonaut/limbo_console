@@ -24,7 +24,7 @@ static func bbcode_strip(p_text: String) -> String:
 
 
 static func get_method_info(p_callable: Callable) -> Dictionary:
-	var method_info: Dictionary	
+	var method_info: Dictionary
 	var method_list: Array[Dictionary]
 	if p_callable.get_object() is GDScript:
 		method_list = p_callable.get_object().get_script_method_list()
