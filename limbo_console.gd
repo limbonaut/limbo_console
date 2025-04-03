@@ -700,28 +700,28 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 		argv.append(line.substr(start, cur))
 	return argv
 
-## Substitutes an array of strings with its real command in argv
-## will recursively expand aliases until no aliases are left
+
+## Substitutes an array of strings with its real command in argv.
+## Will recursively expand aliases until no aliases are left.
 func _expand_alias(p_argv: PackedStringArray) -> PackedStringArray:
-	var arg_duplicated = Array(p_argv)
-	var val: Array = []
-	var max_depth: int = 1000
+	var argv: PackedStringArray = p_argv.duplicate()
+	var result := PackedStringArray()
+	const max_depth: int = 1000
 	var current_depth: int = 0
-	while not arg_duplicated.is_empty() and current_depth != max_depth:
-		var current: String = arg_duplicated.pop_front()
-		var alias: Array = _aliases.get(current, [])
+	while not argv.is_empty() and current_depth != max_depth:
+		var current: String = argv[0]
+		argv.remove_at(0)
+		var alias_argv: PackedStringArray = _aliases.get(current, [])
 		current_depth += 1
-		if not alias.is_empty():
-			# we need to insert in reverse order
-			alias.reverse()
-			for item in alias:
-				arg_duplicated.insert(0, item)
+		if not alias_argv.is_empty():
+			argv = alias_argv + argv
 		else:
-			val.append(current)
+			result.append(current)
 	if current_depth >= max_depth:
 		push_error("LimboConsole: Max depth for alias reached. Is there a loop in your aliasing?")
 		return p_argv
-	return val
+	return result
+
 
 ## Converts arguments from String to types expected by the callable, and returns true if successful.
 ## The converted values are placed into a separate r_args array.
