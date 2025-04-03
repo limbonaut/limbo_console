@@ -4,7 +4,6 @@ extends CanvasLayer
 signal toggled(is_shown)
 
 const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
-const HISTORY_FILE := "user://limbo_console_history.log"
 
 const AsciiArt := preload("res://addons/limbo_console/ascii_art.gd")
 const BuiltinCommands := preload("res://addons/limbo_console/builtin_commands.gd")
@@ -12,6 +11,7 @@ const CommandEntry := preload("res://addons/limbo_console/command_entry.gd")
 const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
 const Util := preload("res://addons/limbo_console/util.gd")
+const CommandHistory := preload("res://addons/limbo_console/command_history.gd")
 const HistoryGui := preload("res://addons/limbo_console/history_gui.gd")
 
 ## If false, prevents console from being shown. Commands can still be executed from code.
@@ -48,8 +48,8 @@ var _commands: Dictionary # command_name => Callable
 var _aliases: Dictionary # alias_name => command_to_run: PackedStringArray
 var _command_descriptions: Dictionary # command_name => description_text
 var _argument_autocomplete_sources: Dictionary # [command_name, arg_idx] => Callable
-var _history: PackedStringArray
-var _hist_idx: int = -1
+var _history: CommandHistory
+var _history_iter: CommandHistory.WrappingIterator
 var _autocomplete_matches: PackedStringArray
 var _eval_inputs: Dictionary
 var _silent: bool = false
@@ -67,15 +67,17 @@ func _init() -> void:
 	_options = ConsoleOptions.new()
 	ConfigMapper.load_from_config(_options)
 
+	_history = CommandHistory.new()
+	if _options.persist_history:
+		_history.load()
+	_history_iter = _history.create_iterator()
+
 	_build_gui()
 	_init_theme()
 	_control.hide()
 	_control_block.hide()
 
 	_open_speed = _options.open_speed
-
-	if _options.persist_history:
-		_load_history()
 
 	if _options.disable_in_release_build:
 		enabled = OS.is_debug_build()
@@ -96,19 +98,22 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	if _options.persist_history:
-		_save_history()
+		_history.trim(_options.history_lines)
+		_history.save()
 
 
-func _handle_command_input(p_event: InputEvent):
+func _handle_command_input(p_event: InputEvent) -> void:
 	var handled := true
 	if not _is_open:
 		pass  # Don't accept input while closing console.
 	elif p_event.keycode == KEY_UP:
-		_hist_idx += 1
-		_fill_entry_from_history()
+		_fill_entry(_history_iter.prev())
+		_clear_autocomplete()
+		_update_autocomplete()
 	elif p_event.keycode == KEY_DOWN:
-		_hist_idx -= 1
-		_fill_entry_from_history()
+		_fill_entry(_history_iter.next())
+		_clear_autocomplete()
+		_update_autocomplete()
 	elif p_event.is_action_pressed("limbo_auto_complete_reverse"):
 		_reverse_autocomplete()
 	elif p_event.keycode == KEY_TAB:
@@ -126,7 +131,6 @@ func _handle_command_input(p_event: InputEvent):
 
 
 func _handle_history_input(p_event: InputEvent):
-
 	# Allow tab complete (reverse)
 	if p_event.is_action_pressed("limbo_auto_complete_reverse"):
 		_reverse_autocomplete()
@@ -223,8 +227,7 @@ func clear_console() -> void:
 
 ## Erases the history that is persisted to the disk
 func erase_history() -> void:
-	_history = []
-	_history_gui.set_command_history(_history)
+	_history.clear()
 	var file := FileAccess.open(LimboConsole.HISTORY_FILE, FileAccess.WRITE)
 	if file:
 		file.store_string("")
@@ -392,7 +395,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	_silent = p_silent
 	if not p_silent:
 		var history_line: String = " ".join(argv)
-		_push_history(history_line)
+		_history.push_command(history_line)
 		info("[color=%s][b]>[/b] %s[/color] %s" %
 				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
 
@@ -571,9 +574,8 @@ func _build_gui() -> void:
 
 	_control.modulate = Color(1.0, 1.0, 1.0, _options.opacity)
 
-	_history_gui = HistoryGui.new()
+	_history_gui = HistoryGui.new(_history)
 	_output.add_child(_history_gui)
-	_history_gui.set_command_history(_history)
 	_history_gui.visible = false
 
 
@@ -643,33 +645,6 @@ func _run_autoexec_script() -> void:
 		FileAccess.open(_options.autoexec_script, FileAccess.WRITE)
 	if FileAccess.file_exists(_options.autoexec_script):
 		execute_script(_options.autoexec_script)
-
-
-func _load_history() -> void:
-	var file := FileAccess.open(HISTORY_FILE, FileAccess.READ)
-	if not file:
-		return
-	while not file.eof_reached():
-		var line: String = file.get_line().strip_edges()
-		if not line.is_empty():
-			_history.append(line)
-	file.close()
-
-
-func _save_history() -> void:
-	# Trim history first
-	var max_lines: int = maxi(_options.history_lines, 0)
-	if _history.size() > max_lines:
-		_history = _history.slice(_history.size() - max_lines)
-		_history_gui.set_command_history(_history)
-
-	var file := FileAccess.open(HISTORY_FILE, FileAccess.WRITE)
-	if not file:
-		push_error("LimboConsole: Failed to save console history to file: ", HISTORY_FILE)
-		return
-	for line in _history:
-		file.store_line(line)
-	file.close()
 
 
 # *** PARSING
@@ -887,8 +862,8 @@ func _update_autocomplete() -> void:
 			if _options.autocomplete_use_history_with_matches or \
 			 		len(_autocomplete_matches) == 0:
 				for i in range(_history.size() - 1, -1, -1):
-					if _history[i].begins_with(_entry.text):
-						_autocomplete_matches.append(_history[i])
+					if _history.get_command(i).begins_with(_entry.text):
+						_autocomplete_matches.append(_history.get_command(i))
 
 	if _autocomplete_matches.size() > 0 \
 			and _autocomplete_matches[0].length() > _entry.text.length() \
@@ -1006,25 +981,6 @@ func _validate_autocomplete_result(p_result: Variant, p_command: String) -> bool
 func _fill_entry(p_line: String) -> void:
 	_entry.text = p_line
 	_entry.set_caret_column(p_line.length())
-
-
-func _fill_entry_from_history() -> void:
-	_hist_idx = wrapi(_hist_idx, -1, _history.size())
-	if _hist_idx < 0:
-		_fill_entry("")
-	else:
-		_fill_entry(_history[_history.size() - _hist_idx - 1])
-	_clear_autocomplete()
-	_update_autocomplete()
-
-
-func _push_history(p_line: String) -> void:
-	var idx: int = _history.find(p_line)
-	# Duplicate commands not allowed in history
-	if idx != -1:
-		_history.remove_at(idx)
-	_history.append(p_line)
-	_hist_idx = -1
 
 
 func _on_entry_text_submitted(p_command: String) -> void:

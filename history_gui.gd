@@ -1,5 +1,6 @@
 extends Panel
 
+const CommandHistory := preload("res://addons/limbo_console/command_history.gd")
 
 # Visual Elements
 var _last_highlighted_label: Label
@@ -9,8 +10,8 @@ var _scroll_bar_width: int = 12
 
 # Indexing Results
 var _command: String = "<placeholder>"  # Needs default value so first search always processes
-var _command_history: PackedStringArray  # Command history to search through
-var _filter_results: Array  # Most recent results of performing a search for the _command in _command_history
+var _history: CommandHistory  # Command history to search through
+var _filter_results: PackedStringArray  # Most recent results of performing a search for the _command in _history
 
 var _display_count: int = 0  # Number of history items to display in search
 var _offset: int = 0  # The offset _filter_results
@@ -23,7 +24,9 @@ var _highlight_color: Color
 # *** GODOT / VIRTUAL
 
 
-func _init() -> void:
+func _init(p_history: CommandHistory) -> void:
+	_history = p_history
+
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -80,15 +83,10 @@ func _input(event: InputEvent) -> void:
 ## Set visibility of history search
 func set_visibility(p_visible: bool) -> void:
 	if not visible and p_visible:
-		# It's possible the _command_history has updated while not visible
+		# It's possible the _history has updated while not visible
 		# make sure the filtered list is up-to-date
 		_search_and_filter()
 	visible = p_visible
-
-
-## Set the command history to search through
-func set_command_history(commands: PackedStringArray) -> void:
-	_command_history = commands
 
 
 ## Move cursor downwards
@@ -159,7 +157,7 @@ func _update_scroll_list() -> void:
 
 ## Highlight the subindex
 func _update_highlight() -> void:
-	if _sub_index < 0 or _command_history.size() == 0:
+	if _sub_index < 0 or _history.size() == 0:
 		return
 
 	var style := StyleBoxFlat.new()
@@ -174,46 +172,6 @@ func _update_highlight() -> void:
 
 	_history_labels[_sub_index].add_theme_stylebox_override("normal", style)
 	_last_highlighted_label = _history_labels[_sub_index]
-
-
-## Fuzzy search function similar to fzf.
-static func _fuzzy_match(p_query: String, p_items: PackedStringArray) -> Array:
-	var results: Array = []
-
-	if len(p_query) == 0:
-		return Array(p_items)
-
-	for item: String in p_items:
-		var score: int = _compute_match_score(p_query.to_lower(), item.to_lower())
-		if score > 0:
-			results.append({"item": item, "score": score})
-
-	results.sort_custom(func(a, b): return a.score > b.score)
-
-	return results.map(func(entry): return entry.item)
-
-
-## Scoring function for fuzzy matching.
-static func _compute_match_score(query: String, target: String) -> int:
-	var score: int = 0
-	var query_index: int = 0
-
-	# Exact match. give unbeatable score
-	if query == target:
-		score = 99999
-		return score
-
-	for i in range(target.length()):
-		if query_index < query.length() and target[i] == query[query_index]:
-			score += 10  # Base score for a match
-			if i == 0 or target[i - 1] == " ":  # Bonus for word start
-				score += 5
-			query_index += 1
-			if query_index == query.length():
-				break
-
-	# Ensure full query matches
-	return score if query_index == query.length() else 0
 
 
 ## Get the current index of the selected item
@@ -293,11 +251,6 @@ func _reset_history_to_beginning() -> void:
 
 ## Search for the current command and filter the results
 func _search_and_filter() -> void:
-	_filter_results = _fuzzy_match(_command, _command_history)
-
-	# If the filtered results are just the copy of the command history, need to reverse
-	# since the results need to be displayed going up instead of down
-	if len(_filter_results) == len(_command_history):
-		_filter_results.reverse()
+	_filter_results = _history.fuzzy_match(_command)
 
 	_reset_history_to_beginning()
