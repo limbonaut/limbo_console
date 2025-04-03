@@ -90,7 +90,7 @@ func fuzzy_match(p_query: String) -> PackedStringArray:
 
 func _reset_iterators() -> void:
 	for it in _iterators:
-		it._reset(_history)
+		it._reassign(_history)
 
 
 ## Scoring function for fuzzy matching.
@@ -148,6 +148,10 @@ class WrappingIterator:
 		return _commands[_idx]
 
 
-	func _reset(p_commands: PackedStringArray) -> void:
+	func reset() -> void:
 		_idx = -1
-		_commands = p_commands
+
+
+	func _reassign(p_history: PackedStringArray) -> void:
+		_idx = -1
+		_commands = p_history

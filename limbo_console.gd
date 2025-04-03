@@ -82,8 +82,6 @@ func _init() -> void:
 	if _options.disable_in_release_build:
 		enabled = OS.is_debug_build()
 
-	_entry.text_submitted.connect(_on_entry_text_submitted)
-	_entry.text_changed.connect(_on_entry_text_changed)
 
 
 func _ready() -> void:
@@ -93,7 +91,10 @@ func _ready() -> void:
 		_greet()
 	_add_aliases_from_config.call_deferred()
 	_run_autoexec_script.call_deferred()
+
 	_entry.autocomplete_requested.connect(_autocomplete)
+	_entry.text_submitted.connect(_on_entry_text_submitted)
+	_entry.text_changed.connect(_on_entry_text_changed)
 
 
 func _exit_tree() -> void:
@@ -998,4 +999,7 @@ func _on_entry_text_submitted(p_command: String) -> void:
 
 func _on_entry_text_changed() -> void:
 	_clear_autocomplete()
-	_update_autocomplete()
+	if not _entry.text.is_empty():
+		_update_autocomplete()
+	else:
+		_history_iter.reset()
