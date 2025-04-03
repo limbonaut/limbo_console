@@ -1,32 +1,34 @@
 extends RefCounted
+## Manages command history.
+
 
 const HISTORY_FILE := "user://limbo_console_history.log"
 
 
-var _history: PackedStringArray
+var _entries: PackedStringArray
 var _hist_idx = -1
 var _iterators: Array[WrappingIterator]
 
 
-func push_command(p_command: String) -> void:
-	_push_command(p_command)
+func push_entry(p_entry: String) -> void:
+	_push_entry(p_entry)
 	_reset_iterators()
 
 
-func _push_command(p_command: String) -> void:
-	var idx: int = _history.find(p_command)
+func _push_entry(p_entry: String) -> void:
+	var idx: int = _entries.find(p_entry)
 	if idx != -1:
 		# Duplicate commands not allowed in history.
-		_history.remove_at(idx)
-	_history.append(p_command)
+		_entries.remove_at(idx)
+	_entries.append(p_entry)
 
 
-func get_command(p_index: int) -> String:
-	return _history[clampi(p_index, 0, _history.size())]
+func get_entry(p_index: int) -> String:
+	return _entries[clampi(p_index, 0, _entries.size())]
 
 
 func create_iterator() -> WrappingIterator:
-	var it := WrappingIterator.new(_history)
+	var it := WrappingIterator.new(_entries)
 	_iterators.append(it)
 	return it
 
@@ -36,17 +38,17 @@ func release_iterator(p_iter: WrappingIterator) -> void:
 
 
 func size() -> int:
-	return _history.size()
+	return _entries.size()
 
 
 func trim(p_max_size: int) -> void:
-	if _history.size() > p_max_size:
-		_history.slice(p_max_size - _history.size())
+	if _entries.size() > p_max_size:
+		_entries.slice(p_max_size - _entries.size())
 	_reset_iterators()
 
 
 func clear() -> void:
-	_history.clear()
+	_entries.clear()
 
 
 func load(p_path: String = HISTORY_FILE) -> void:
@@ -56,7 +58,7 @@ func load(p_path: String = HISTORY_FILE) -> void:
 	while not file.eof_reached():
 		var line: String = file.get_line().strip_edges()
 		if not line.is_empty():
-			_push_command(line)
+			_push_entry(line)
 	file.close()
 	_reset_iterators()
 
@@ -66,7 +68,7 @@ func save(p_path: String = HISTORY_FILE) -> void:
 	if not file:
 		push_error("LimboConsole: Failed to save console history to file: ", p_path)
 		return
-	for line in _history:
+	for line in _entries:
 		file.store_line(line)
 	file.close()
 
@@ -74,23 +76,23 @@ func save(p_path: String = HISTORY_FILE) -> void:
 ## Searches history and returns an array starting with most relevant entries.
 func fuzzy_match(p_query: String) -> PackedStringArray:
 	if len(p_query) == 0:
-		var copy := _history.duplicate()
+		var copy := _entries.duplicate()
 		copy.reverse()
 		return copy
 
 	var results: Array = []
-	for cmd: String in _history:
-		var score: int = _compute_match_score(p_query.to_lower(), cmd.to_lower())
+	for entry: String in _entries:
+		var score: int = _compute_match_score(p_query.to_lower(), entry.to_lower())
 		if score > 0:
-			results.append({"command": cmd, "score": score})
+			results.append({"entry": entry, "score": score})
 
 	results.sort_custom(func(a, b): return a.score > b.score)
-	return results.map(func(entry): return entry.command)
+	return results.map(func(rec): return rec.entry)
 
 
 func _reset_iterators() -> void:
 	for it in _iterators:
-		it._reassign(_history)
+		it._reassign(_entries)
 
 
 ## Scoring function for fuzzy matching.
@@ -121,37 +123,37 @@ class WrappingIterator:
 	extends RefCounted
 
 	var _idx: int = -1
-	var _commands: PackedStringArray
+	var _entries: PackedStringArray
 
 
-	func _init(p_commands: PackedStringArray) -> void:
-		_commands = p_commands
+	func _init(p_entries: PackedStringArray) -> void:
+		_entries = p_entries
 
 
 	func prev() -> String:
-		_idx = wrapi(_idx - 1, -1, _commands.size())
+		_idx = wrapi(_idx - 1, -1, _entries.size())
 		if _idx == -1:
 			return String()
-		return _commands[_idx]
+		return _entries[_idx]
 
 
 	func next() -> String:
-		_idx = wrapi(_idx + 1, -1, _commands.size())
+		_idx = wrapi(_idx + 1, -1, _entries.size())
 		if _idx == -1:
 			return String()
-		return _commands[_idx]
+		return _entries[_idx]
 
 
 	func current() -> String:
-		if _idx < 0 or _idx >= _commands.size():
+		if _idx < 0 or _idx >= _entries.size():
 			return String()
-		return _commands[_idx]
+		return _entries[_idx]
 
 
 	func reset() -> void:
 		_idx = -1
 
 
-	func _reassign(p_history: PackedStringArray) -> void:
+	func _reassign(p_entries: PackedStringArray) -> void:
 		_idx = -1
-		_commands = p_history
+		_entries = p_entries

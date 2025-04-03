@@ -396,7 +396,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 	_silent = p_silent
 	if not p_silent:
 		var history_line: String = " ".join(argv)
-		_history.push_command(history_line)
+		_history.push_entry(history_line)
 		info("[color=%s][b]>[/b] %s[/color] %s" %
 				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
 
@@ -863,8 +863,8 @@ func _update_autocomplete() -> void:
 			if _options.autocomplete_use_history_with_matches or \
 			 		len(_autocomplete_matches) == 0:
 				for i in range(_history.size() - 1, -1, -1):
-					if _history.get_command(i).begins_with(_entry.text):
-						_autocomplete_matches.append(_history.get_command(i))
+					if _history.get_entry(i).begins_with(_entry.text):
+						_autocomplete_matches.append(_history.get_entry(i))
 
 	if _autocomplete_matches.size() > 0 \
 			and _autocomplete_matches[0].length() > _entry.text.length() \
