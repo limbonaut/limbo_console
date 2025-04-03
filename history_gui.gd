@@ -51,6 +51,9 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if not is_visible_in_tree():
+		return
+
 	# Scroll up/down on mouse wheel up/down
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
