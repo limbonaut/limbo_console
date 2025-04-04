@@ -94,3 +94,7 @@ Simple rules:
 - A line that starts with a '#' is treated as a comment and is not executed as part of the script.
 
 You can have a script execute automatically every time the game starts. There is a special script called `user://autoexec.lcs` that runs each time the game starts. This can be customized in the configuration file.
+
+### Contributing
+
+Check out [CONTRIBUTING.md](CONTRIBUTING.md).
