@@ -73,6 +73,14 @@ Some notable methods and properties:
 
 This is not a complete list. For the rest, check out `limbo_console.gd`.
 
+### Keyboard Shortcuts
+
+- `Enter` -- run command.
+- `TAB` -- autocomplete command or cycle through autocomplete suggestions.
+- `Shift+TAB` -- reversed cycle through autocomplete suggestions.
+- `Up/Down` -- cycle through history.
+- `Ctrl+R` -- search and select history entry (similar to [fzf](https://github.com/junegunn/fzf)).
+
 ### Configuration
 
 Options can be modified in the project-specific configuration file located at `res://addons/limbo_console.cfg`. This file is stored outside the plugin's directory to support adding the plugin as a Git submodule.
