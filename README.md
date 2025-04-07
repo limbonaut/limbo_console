@@ -39,6 +39,15 @@ The example above adds a command that multiplies two numbers and prints the resu
 LimboConsole.register_command(multiply, "multiply", "multiply two numbers")
 ```
 
+You can add a command as a subcommand of another command:
+
+```gdscript
+# Register `multiply` as a subcommand under a new `math` command.
+LimboConsole.register_command(multiply, "math multiply", "Multiply two numbers")
+```
+
+Now, you can enter `math multiply 2 4` in the console. By the way, the parent command doesn't have to exist.
+
 Several basic types are supported for command arguments, such as `bool`, `int`, `float`, `String` and `Vector{2,3,4}` types. To enter a `Vector2` argument, enclose its components in parentheses, like this: `(1 2)`. String arguments can also be enclosed in double quotation marks `"`.
 
 Autocompletion works for both command names and history. It can also be implemented for specific command arguments, as shown in the following example:
@@ -75,14 +84,14 @@ This is not a complete list. For the rest, check out `limbo_console.gd`.
 
 ### Keyboard Shortcuts
 
-- `Grave Accent` *(aka backtick - the key to the left of the `1` key)* -- toggle the console.
-- `Enter` -- run typed command.
-- `Tab` -- autocomplete command or cycle through autocomplete suggestions.
-- `Shift+Tab` -- reversed cycle through autocomplete suggestions.
-- `Right` *(when cursor is at the end of command entry)* -- autocomplete according to inline hint; doesn't cycle like `TAB`.
-- `Up/Down` -- cycle through history.
-- `Ctrl+R` -- toggle history search interface (similar to [fzf](https://github.com/junegunn/fzf)).
-- `Ctrl+C` *(when no text selected in the command entry)* -- clear command entry.
+- `Grave Accent` *(aka backtick - the key to the left of the `1` key)* — Toggle the console.
+- `Enter` — Run entered command.
+- `Tab` — Autocomplete command entry or cycle through autocomplete suggestions.
+- `Shift+Tab` — Cycle through autocomplete suggestions in reverse.
+- `Right` *(when cursor is at the end of command entry)* — Autocomplete according to inline hint (doesn't cycle like `Tab`).
+- `Up/Down` — Cycle through command history, replacing contents of command entry.
+- `Ctrl+R` — Toggle the history search interface (similar to [fzf](https://github.com/junegunn/fzf)).
+- `Ctrl+C` *(when no text selected)* — Clear the command entry.
 
 ### Configuration
 
