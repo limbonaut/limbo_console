@@ -75,11 +75,14 @@ This is not a complete list. For the rest, check out `limbo_console.gd`.
 
 ### Keyboard Shortcuts
 
-- `Enter` -- run command.
-- `TAB` -- autocomplete command or cycle through autocomplete suggestions.
-- `Shift+TAB` -- reversed cycle through autocomplete suggestions.
+- `Grave Accent` *(aka backtick - the key to the left of the `1` key)* -- toggle the console.
+- `Enter` -- run typed command.
+- `Tab` -- autocomplete command or cycle through autocomplete suggestions.
+- `Shift+Tab` -- reversed cycle through autocomplete suggestions.
+- `Right` *(when cursor is at the end of command entry)* -- autocomplete according to inline hint; doesn't cycle like `TAB`.
 - `Up/Down` -- cycle through history.
-- `Ctrl+R` -- search and select history entry (similar to [fzf](https://github.com/junegunn/fzf)).
+- `Ctrl+R` -- toggle history search interface (similar to [fzf](https://github.com/junegunn/fzf)).
+- `Ctrl+C` *(when no text selected in the command entry)* -- clear command entry.
 
 ### Configuration
 
