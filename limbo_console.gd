@@ -14,7 +14,7 @@ const Util := preload("res://addons/limbo_console/util.gd")
 const CommandHistory := preload("res://addons/limbo_console/command_history.gd")
 const HistoryGui := preload("res://addons/limbo_console/history_gui.gd")
 
-const _MAX_SUBCOMMANDS: int = 4
+const MAX_SUBCOMMANDS: int = 4
 
 ## If false, prevents console from being shown. Commands can still be executed from code.
 var enabled: bool = true:
@@ -685,7 +685,7 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 ## Joins recognized subcommands in the argument vector into a single
 ## space-separated command sequence at index zero.
 func _join_subcommands(p_argv: PackedStringArray) -> PackedStringArray:
-	for num_parts in range(_MAX_SUBCOMMANDS, 1, -1):
+	for num_parts in range(MAX_SUBCOMMANDS, 1, -1):
 		if p_argv.size() >= num_parts:
 			var cmd: String = ' '.join(p_argv.slice(0, num_parts))
 			if has_command(cmd) or has_alias(cmd):
