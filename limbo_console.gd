@@ -83,7 +83,6 @@ func _init() -> void:
 		enabled = OS.is_debug_build()
 
 
-
 func _ready() -> void:
 	set_process(false) # Note, if you do it in _init(), it won't actually stop it for some reason.
 	BuiltinCommands.register_commands()
@@ -932,9 +931,10 @@ func _show_console() -> void:
 	if not _control.visible and enabled:
 		_control.show()
 		_control_block.show()
-		_was_already_paused = get_tree().paused
-		if not _was_already_paused:
-			get_tree().paused = true
+		if _options.pause_when_open:
+			_was_already_paused = get_tree().paused
+			if not _was_already_paused:
+				get_tree().paused = true
 		_previous_gui_focus = get_viewport().gui_get_focus_owner()
 		_entry.grab_focus()
 		toggled.emit(true)
@@ -944,8 +944,10 @@ func _hide_console() -> void:
 	if _control.visible:
 		_control.hide()
 		_control_block.hide()
-		if not _was_already_paused:
-			get_tree().paused = false
+		
+		if _options.pause_when_open:
+			if not _was_already_paused:
+				get_tree().paused = false
 		if is_instance_valid(_previous_gui_focus):
 			_previous_gui_focus.grab_focus()
 		toggled.emit(false)
