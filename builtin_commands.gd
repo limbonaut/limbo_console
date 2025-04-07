@@ -28,42 +28,14 @@ static func _alias_usage() -> void:
 	LimboConsole.info("Usage: %s alias_name command_to_run [args...]" % [LimboConsole.format_name("alias")])
 
 
-static func cmd_alias(p_alias_expression: String = "") -> void:
-	if p_alias_expression.is_empty():
+static func cmd_alias(p_alias: String, p_command: String) -> void:
+	if not Util.is_valid_command_sequence(p_alias):
+		LimboConsole.error("Invalid alias '%s'. Only space-separated identifiers allowed with letters, digits, or underscores, starting with non-digit." % [p_alias])
 		_alias_usage()
 		return
 
-	var sz: int = p_alias_expression.length()
-	var idx: int = 0
-
-	while idx < sz and p_alias_expression[idx] == ' ':
-		idx += 1
-	var end: int = idx
-
-	while end < sz and p_alias_expression[end] != ' ':
-		end += 1
-
-	var alias: String = p_alias_expression.substr(idx, end - idx)
-	if not alias.is_valid_identifier():
-		LimboConsole.error("Invalid alias identifier '%s'" % [alias])
-		_alias_usage()
-		return
-
-	idx = end
-	while idx < sz and p_alias_expression[idx] == ' ':
-		idx += 1
-
-	end = idx
-	while end < sz and p_alias_expression[end] != ' ':
-		end += 1
-	var command: String = p_alias_expression.substr(idx, end - idx).strip_edges()
-
-	# Note: It should be possible to create aliases for commands that are not yet registered.
-	idx = end
-	var args: String = p_alias_expression.substr(idx).strip_edges()
-	LimboConsole.remove_alias(alias)
-	LimboConsole.add_alias(alias, command + ' ' + args)
-	LimboConsole.info("Added %s: %s %s" % [LimboConsole.format_name(alias), command, args])
+	LimboConsole.info("Adding %s => %s" % [LimboConsole.format_name(p_alias), p_command])
+	LimboConsole.add_alias(p_alias, p_command)
 
 
 static func cmd_aliases() -> void:
