@@ -24,16 +24,7 @@ static func register_commands() -> void:
 	LimboConsole.add_argument_autocomplete_source("help", 1, LimboConsole.get_command_names.bind(true))
 
 
-static func _alias_usage() -> void:
-	LimboConsole.info("Usage: %s alias_name command_to_run [args...]" % [LimboConsole.format_name("alias")])
-
-
 static func cmd_alias(p_alias: String, p_command: String) -> void:
-	if not Util.is_valid_command_sequence(p_alias):
-		LimboConsole.error("Invalid alias '%s'. Only space-separated identifiers allowed with letters, digits, or underscores, starting with non-digit." % [p_alias])
-		_alias_usage()
-		return
-
 	LimboConsole.info("Adding %s => %s" % [LimboConsole.format_name(p_alias), p_command])
 	LimboConsole.add_alias(p_alias, p_command)
 
