@@ -14,6 +14,8 @@ const Util := preload("res://addons/limbo_console/util.gd")
 const CommandHistory := preload("res://addons/limbo_console/command_history.gd")
 const HistoryGui := preload("res://addons/limbo_console/history_gui.gd")
 
+const MAX_SUBCOMMANDS: int = 4
+
 ## If false, prevents console from being shown. Commands can still be executed from code.
 var enabled: bool = true:
 	set(value):
@@ -44,8 +46,8 @@ var _entry_command_found_color: Color
 var _entry_command_not_found_color: Color
 
 var _options: ConsoleOptions
-var _commands: Dictionary # command_name => Callable
-var _aliases: Dictionary # alias_name => command_to_run: PackedStringArray
+var _commands: Dictionary # "command" => Callable, or "command sub1 sub2" =>  Callable
+var _aliases: Dictionary # "alias" => command_to_run: PackedStringArray (alias may contain subcommands)
 var _command_descriptions: Dictionary # command_name => description_text
 var _argument_autocomplete_sources: Dictionary # [command_name, arg_idx] => Callable
 var _history: CommandHistory
@@ -269,11 +271,12 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 		print(Util.bbcode_strip(p_line))
 
 
-## Registers a new command for the specified callable. [br]
-## Optionally, you can provide a name and a description.
+## Registers a callable as a command, with optional name and description.
+## Name can have up to 4 space-separated identifiers (e.g., "command sub1 sub2 sub3"),
+## using letters, digits, or underscores, starting with a non-digit.
 func register_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
-	if p_name and not p_name.is_valid_ascii_identifier():
-		push_error("LimboConsole: Failed to register command: %s. A command must be a valid ascii identifier" % [p_name])
+	if p_name and not Util.is_valid_command_sequence(p_name):
+		push_error("LimboConsole: Failed to register command: %s. Name can have up to 4 space-separated identifiers, using letters, digits, or underscores, starting with non-digit." % [p_name])
 		return
 
 	if not _validate_callable(p_func):
@@ -332,7 +335,9 @@ func get_command_description(p_name: String) -> String:
 	return _command_descriptions.get(p_name, "")
 
 
-## Registers an alias for a command (may include arguments).
+## Registers an alias for command line. [br]
+## Alias may contain space-separated parts, e.g. "command sub1" which must match
+## against two subsequent arguments on the command line.
 func add_alias(p_alias: String, p_command_to_run: String) -> void:
 	# It should be possible to override commands and existing aliases.
 	# It should be possible to create aliases for commands that are not yet registered,
@@ -388,7 +393,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		return
 
 	var argv: PackedStringArray = _parse_command_line(p_command_line)
-	var expanded_argv: PackedStringArray = _expand_alias(argv)
+	var expanded_argv: PackedStringArray = _join_subcommands(_expand_alias(argv))
 	var command_name: String = expanded_argv[0]
 	var command_args: Array = []
 
@@ -676,6 +681,18 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 	return argv
 
 
+## Joins recognized subcommands in the argument vector into a single
+## space-separated command sequence at index zero.
+func _join_subcommands(p_argv: PackedStringArray) -> PackedStringArray:
+	for num_parts in range(MAX_SUBCOMMANDS, 1, -1):
+		if p_argv.size() >= num_parts:
+			var cmd: String = ' '.join(p_argv.slice(0, num_parts))
+			if has_command(cmd) or has_alias(cmd):
+				var argv: PackedStringArray = [cmd]
+				return argv + p_argv.slice(num_parts)
+	return p_argv
+
+
 ## Substitutes an array of strings with its real command in argv.
 ## Will recursively expand aliases until no aliases are left.
 func _expand_alias(p_argv: PackedStringArray) -> PackedStringArray:
@@ -684,6 +701,7 @@ func _expand_alias(p_argv: PackedStringArray) -> PackedStringArray:
 	const max_depth: int = 1000
 	var current_depth: int = 0
 	while not argv.is_empty() and current_depth != max_depth:
+		argv = _join_subcommands(argv)
 		var current: String = argv[0]
 		argv.remove_at(0)
 		var alias_argv: PackedStringArray = _aliases.get(current, [])

@@ -106,3 +106,14 @@ static func _calculate_osa_distance(s1: String, s2: String) -> int:
 		row1 = row2
 		row2 = tmp
 	return row1[s2_len]
+
+
+## Returns true, if a string is constructed of one or more space-separated valid
+## command identifiers ("command" or "command sub1 sub2").
+## A valid command identifier may contain only letters, digits, and underscores (_),
+## and the first character may not be a digit.
+static func is_valid_command_sequence(p_string: String) -> bool:
+	for part in p_string.split(' '):
+		if not part.is_valid_ascii_identifier():
+			return false
+	return true
