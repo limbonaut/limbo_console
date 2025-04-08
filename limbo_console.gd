@@ -200,6 +200,8 @@ func close_console() -> void:
 		_is_open = false
 		set_process(true)
 		_history_gui.visible = false
+		if _options.persist_history:
+			_history.save()
 		# _hide_console() is called in _process()
 
 
