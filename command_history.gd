@@ -8,6 +8,7 @@ const HISTORY_FILE := "user://limbo_console_history.log"
 var _entries: PackedStringArray
 var _hist_idx = -1
 var _iterators: Array[WrappingIterator]
+var _is_dirty: bool = false
 
 
 func push_entry(p_entry: String) -> void:
@@ -21,6 +22,7 @@ func _push_entry(p_entry: String) -> void:
 		# Duplicate commands not allowed in history.
 		_entries.remove_at(idx)
 	_entries.append(p_entry)
+	_is_dirty = true
 
 
 func get_entry(p_index: int) -> String:
@@ -61,9 +63,12 @@ func load(p_path: String = HISTORY_FILE) -> void:
 			_push_entry(line)
 	file.close()
 	_reset_iterators()
+	_is_dirty = false
 
 
 func save(p_path: String = HISTORY_FILE) -> void:
+	if not _is_dirty:
+		return
 	var file := FileAccess.open(p_path, FileAccess.WRITE)
 	if not file:
 		push_error("LimboConsole: Failed to save console history to file: ", p_path)
@@ -71,6 +76,7 @@ func save(p_path: String = HISTORY_FILE) -> void:
 	for line in _entries:
 		file.store_line(line)
 	file.close()
+	_is_dirty = false
 
 
 ## Searches history and returns an array starting with most relevant entries.
