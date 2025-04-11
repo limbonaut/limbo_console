@@ -31,8 +31,5 @@ const CONFIG_PATH := "res://addons/limbo_console.cfg"
 @export var autoexec_script: String = "user://autoexec.lcs"
 @export var autoexec_auto_create: bool = true
 
-## The unsafe category means that enabling any settings within it may affect the security of your project,
-## but it can also improve the speed of the console.
-## Enable parameters in this category only if you are not going to use the console online.
-@export_category("unsafe")
-@export var unsafe_conversion: bool = false
+@export_category("init_script")
+@export var init_script: String = "res://addons/limbo_console_script.gd"
