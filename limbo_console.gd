@@ -908,12 +908,7 @@ func _parse_dictionary_arg(p_text: String):
 	return comp
 
 
-# Array support
 func _parse_array_arg(p_text: String):
-	assert(p_text.begins_with('[') and p_text.ends_with(']'), "Array string presentation must begin and end with square brackets")
-	# Unsafe conversion
-	if _options.unsafe_conversion:
-		return str_to_var(p_text)
 	var ended: bool
 	var comp: Array
 	var token = ""
@@ -935,11 +930,11 @@ func _parse_array_arg(p_text: String):
 			elif c in ['(', '[', '{']:
 				brackets += c
 			elif c in [')', ']', '}'] and brackets.length() > 1:
-				if c == ')':
+				if brackets[-1] == '(':
 					brackets = brackets.erase(brackets.rfind('('))
-				elif c == ']':
+				elif brackets[-1] == '[':
 					brackets = brackets.erase(brackets.rfind('['))
-				elif c == '}':
+				elif brackets[-1] == '{':
 					brackets = brackets.erase(brackets.rfind('{'))
 			elif brackets == '(' and c == ')':
 				token = _parse_vector_arg(token)
