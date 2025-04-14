@@ -878,7 +878,7 @@ func _update_autocomplete() -> void:
 func add_first_input_autocompletes(command_name: String) -> void:
 	for cmd_name in get_command_names(true):
 		var first_input = cmd_name.split(" ")[0]
-		if command_name in first_input and \
+		if str(first_input).begins_with(command_name) and \
 			 first_input not in _autocomplete_matches:
 				_autocomplete_matches.append(first_input) 
 	_autocomplete_matches.sort()
