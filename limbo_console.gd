@@ -907,7 +907,7 @@ func add_history_autocompletes() -> void:
 
 ## Adds subcommand auto-complete suggestions based on registered commands
 ## and the current user input (argv)
-func add_subcommand_autocompletes(command_name: String, argv: PackedStringArray):
+func add_subcommand_autocompletes(command_name: String, argv: PackedStringArray) -> void:
 	# if there is no partial text there's no subcommand autocompletes to add
 	if len(argv) <= 1:
 		return
