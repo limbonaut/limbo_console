@@ -863,7 +863,7 @@ func _update_autocomplete() -> void:
 			_add_first_input_autocompletes(command_name)
 		elif last_arg != 0:
 			_add_argument_autocompletes(command_name, last_arg, argv)
-			_add_subcommand_autocompletes(command_name, argv)
+			_add_subcommand_autocompletes(_entry.text)
 			_add_history_autocompletes()
 
 	if _autocomplete_matches.size() > 0 \
@@ -900,34 +900,37 @@ func _add_argument_autocompletes(command_name: String, last_arg: int, argv: Pack
 ## Adds auto-completes based on the history
 func _add_history_autocompletes() -> void:
 	if _options.autocomplete_use_history_with_matches or \
- 		len(_autocomplete_matches) == 0:
-			for i in range(_history.size() - 1, -1, -1):
-				if _history.get_entry(i).begins_with(_entry.text):
-					_autocomplete_matches.append(_history.get_entry(i))
+			len(_autocomplete_matches) == 0:
+		for i in range(_history.size() - 1, -1, -1):
+			if _history.get_entry(i).begins_with(_entry.text):
+				_autocomplete_matches.append(_history.get_entry(i))
 
 ## Adds subcommand auto-complete suggestions based on registered commands
-## and the current user input (argv)
-func _add_subcommand_autocompletes(command_name: String, argv: PackedStringArray) -> void:
-	# if there is no partial text there's no subcommand autocompletes to add
-	if len(argv) <= 1:
-		return
-	var last_typed_part: String = argv[1]
-	var matches: PackedStringArray = []
-	var command_name_split: PackedStringArray = command_name.split(" ")
-	for loop_cmd in get_command_names(true):
-		var loop_cmd_split: PackedStringArray = loop_cmd.split(" ")
-		if not loop_cmd.begins_with(argv[0]) or \
-			len(loop_cmd_split) < len(command_name_split) + 1:
-				continue
-		var loop_cmd_part_at_input: String = loop_cmd_split[len(command_name_split)]
-		if loop_cmd_part_at_input.begins_with(last_typed_part) or \
-			 last_typed_part.is_empty():
-				var partial_command_array: PackedStringArray = loop_cmd_split.slice(0, len(command_name_split))
-				partial_command_array.append(loop_cmd_part_at_input)
-				var partial_command: String = " ".join(partial_command_array)
-				if(partial_command not in matches and \
-					partial_command not in _autocomplete_matches):
-						matches.append(partial_command)
+## and the current user input
+func _add_subcommand_autocompletes(typed_val: String) -> void:
+	var command_names: PackedStringArray = get_command_names(true)
+	var typed_val_tokens: PackedStringArray = typed_val.split(" ")
+	var result: Dictionary = {} # Hashset. "autocomplete" => N/A
+	for cmd in command_names:
+		var cmd_split = cmd.split(" ")
+		if len(cmd_split) < len(typed_val_tokens):
+			continue
+		
+		var last_match: int = 0
+		for i in len(typed_val_tokens):
+			if cmd_split[i] != typed_val_tokens[i]:
+				break
+			last_match += 1
+			
+		if last_match < len(typed_val_tokens) - 1:
+			continue
+		
+		if len(cmd_split) >= len(typed_val_tokens) \
+			and cmd_split[last_match].begins_with(typed_val_tokens[-1]):
+			var partial_cmd_arr: PackedStringArray = cmd_split.slice(0, last_match + 1)
+			result.get_or_add(" ".join(partial_cmd_arr))
+			
+	var matches = result.keys()
 	matches.sort()
 	_autocomplete_matches.append_array(matches)
 
