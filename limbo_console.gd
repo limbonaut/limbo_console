@@ -840,6 +840,7 @@ func _autocomplete() -> void:
 		_autocomplete_matches.push_back(match_str)
 		_update_autocomplete()
 
+## Goes in the opposite direction for the autocomplete suggestion
 func _reverse_autocomplete():
 	if not _autocomplete_matches.is_empty():
 		var match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
@@ -856,34 +857,14 @@ func _update_autocomplete() -> void:
 		argv.append("")
 	var command_name: String = argv[0]
 	var last_arg: int = argv.size() - 1
-
 	if _autocomplete_matches.is_empty() and not _entry.text.is_empty():
-		if last_arg == 0:
-			# Command name
-			var line: String = _entry.text
-			for k in get_command_names(true):
-				if k.begins_with(line):
-					_autocomplete_matches.append(k)
-			_autocomplete_matches.sort()
-		else:
-			# Arguments
-			var key := [command_name, last_arg]
-			if _argument_autocomplete_sources.has(key):
-				var argument_values = _argument_autocomplete_sources[key].call()
-				if not _validate_autocomplete_result(argument_values, command_name):
-					argument_values = []
-				var matches: PackedStringArray = []
-				for value in argument_values:
-					if str(value).begins_with(argv[last_arg]):
-						matches.append(_entry.text.substr(0, _entry.text.length() - argv[last_arg].length()) + str(value))
-				matches.sort()
-				_autocomplete_matches.append_array(matches)
-			# History
-			if _options.autocomplete_use_history_with_matches or \
-			 		len(_autocomplete_matches) == 0:
-				for i in range(_history.size() - 1, -1, -1):
-					if _history.get_entry(i).begins_with(_entry.text):
-						_autocomplete_matches.append(_history.get_entry(i))
+		if last_arg == 0 and not argv[0].is_empty() \
+			and len(argv[0].split(" ")) <= 1:
+			_add_first_input_autocompletes(command_name)
+		elif last_arg != 0:
+			_add_argument_autocompletes(command_name, last_arg, argv)
+			_add_subcommand_autocompletes(_entry.text)
+			_add_history_autocompletes()
 
 	if _autocomplete_matches.size() > 0 \
 			and _autocomplete_matches[0].length() > _entry.text.length() \
@@ -891,6 +872,67 @@ func _update_autocomplete() -> void:
 		_entry.autocomplete_hint = _autocomplete_matches[0].substr(_entry.text.length())
 	else:
 		_entry.autocomplete_hint = ""
+
+## Adds auto completes for the first index of a registered
+## commands when the command is split on " "
+func _add_first_input_autocompletes(command_name: String) -> void:
+	for cmd_name in get_command_names(true):
+		var first_input: String = cmd_name.split(" ")[0]
+		if first_input.begins_with(command_name) and \
+			 first_input not in _autocomplete_matches:
+				_autocomplete_matches.append(first_input) 
+	_autocomplete_matches.sort()
+
+## Adds auto-completes based on user added arguments for a command
+func _add_argument_autocompletes(command_name: String, last_arg: int, argv: PackedStringArray) -> void:
+	var key := [command_name, last_arg]
+	if _argument_autocomplete_sources.has(key):
+		var argument_values = _argument_autocomplete_sources[key].call()
+		if not _validate_autocomplete_result(argument_values, command_name):
+			argument_values = []
+		var matches: PackedStringArray = []
+		for value in argument_values:
+			if str(value).begins_with(argv[last_arg]):
+				matches.append(_entry.text.substr(0, _entry.text.length() - argv[last_arg].length()) + str(value))
+		matches.sort()
+		_autocomplete_matches.append_array(matches)
+
+## Adds auto-completes based on the history
+func _add_history_autocompletes() -> void:
+	if _options.autocomplete_use_history_with_matches or \
+			len(_autocomplete_matches) == 0:
+		for i in range(_history.size() - 1, -1, -1):
+			if _history.get_entry(i).begins_with(_entry.text):
+				_autocomplete_matches.append(_history.get_entry(i))
+
+## Adds subcommand auto-complete suggestions based on registered commands
+## and the current user input
+func _add_subcommand_autocompletes(typed_val: String) -> void:
+	var command_names: PackedStringArray = get_command_names(true)
+	var typed_val_tokens: PackedStringArray = typed_val.split(" ")
+	var result: Dictionary = {} # Hashset. "autocomplete" => N/A
+	for cmd in command_names:
+		var cmd_split = cmd.split(" ")
+		if len(cmd_split) < len(typed_val_tokens):
+			continue
+		
+		var last_match: int = 0
+		for i in len(typed_val_tokens):
+			if cmd_split[i] != typed_val_tokens[i]:
+				break
+			last_match += 1
+			
+		if last_match < len(typed_val_tokens) - 1:
+			continue
+		
+		if len(cmd_split) >= len(typed_val_tokens) \
+			and cmd_split[last_match].begins_with(typed_val_tokens[-1]):
+			var partial_cmd_arr: PackedStringArray = cmd_split.slice(0, last_match + 1)
+			result.get_or_add(" ".join(partial_cmd_arr))
+			
+	var matches = result.keys()
+	matches.sort()
+	_autocomplete_matches.append_array(matches)
 
 
 func _clear_autocomplete() -> void:
