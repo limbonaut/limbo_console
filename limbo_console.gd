@@ -167,11 +167,11 @@ func _input(p_event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	var done_sliding := false
 	if _is_open:
-		_open_t = move_toward(_open_t, 1.0, _open_speed * delta)
+		_open_t = move_toward(_open_t, 1.0, _open_speed * delta * 1.0/Engine.time_scale)
 		if _open_t == 1.0:
 			done_sliding = true
 	else: # We close faster than opening.
-		_open_t = move_toward(_open_t, 0.0, _open_speed * delta * 1.5)
+		_open_t = move_toward(_open_t, 0.0, _open_speed * delta * 1.5 * 1.0/Engine.time_scale)
 		if is_zero_approx(_open_t):
 			done_sliding = true
 
