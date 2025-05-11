@@ -377,7 +377,7 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 	if not has_command(p_command):
 		push_error("LimboConsole: Can't add autocomplete source: command doesn't exist: ", p_command)
 		return
-	if p_argument < 1 or p_argument > 5:
+	if p_argument < 0 or p_argument > 4:
 		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
 		return
 	var argument_values = p_source.call()
@@ -487,8 +487,8 @@ func usage(p_command: String) -> Error:
 				def_value = "\"" + def_value + "\""
 			def_spec = " = %s" % [def_value]
 		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
-		if _argument_autocomplete_sources.has([p_command, i + 1]):
-			var auto_complete_callable: Callable = _argument_autocomplete_sources[[p_command, i + 1]]
+		if _argument_autocomplete_sources.has([p_command, i]):
+			var auto_complete_callable: Callable = _argument_autocomplete_sources[[p_command, i]]
 			var arg_autocompletes = auto_complete_callable.call()
 			if len(arg_autocompletes) > 0:
 				var values: String = str(arg_autocompletes).replace("[", "").replace("]", "")
@@ -840,6 +840,7 @@ func _autocomplete() -> void:
 		_autocomplete_matches.push_back(match_str)
 		_update_autocomplete()
 
+
 ## Goes in the opposite direction for the autocomplete suggestion
 func _reverse_autocomplete():
 	if not _autocomplete_matches.is_empty():
@@ -849,6 +850,7 @@ func _reverse_autocomplete():
 		match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
 		_fill_entry(match_str)
 		_update_autocomplete()
+
 
 ## Updates autocomplete suggestions and hint based on user input.
 func _update_autocomplete() -> void:
@@ -862,7 +864,7 @@ func _update_autocomplete() -> void:
 			and len(argv[0].split(" ")) <= 1:
 			_add_first_input_autocompletes(command_name)
 		elif last_arg != 0:
-			_add_argument_autocompletes(command_name, last_arg, argv)
+			_add_argument_autocompletes(argv)
 			_add_subcommand_autocompletes(_entry.text)
 			_add_history_autocompletes()
 
@@ -873,6 +875,7 @@ func _update_autocomplete() -> void:
 	else:
 		_entry.autocomplete_hint = ""
 
+
 ## Adds auto completes for the first index of a registered
 ## commands when the command is split on " "
 func _add_first_input_autocompletes(command_name: String) -> void:
@@ -880,22 +883,29 @@ func _add_first_input_autocompletes(command_name: String) -> void:
 		var first_input: String = cmd_name.split(" ")[0]
 		if first_input.begins_with(command_name) and \
 			 first_input not in _autocomplete_matches:
-				_autocomplete_matches.append(first_input) 
+				_autocomplete_matches.append(first_input)
 	_autocomplete_matches.sort()
 
-## Adds auto-completes based on user added arguments for a command
-func _add_argument_autocompletes(command_name: String, last_arg: int, argv: PackedStringArray) -> void:
-	var key := [command_name, last_arg]
+
+## Adds auto-completes based on user added arguments for a command. [br]
+## p_argv is expected to contain full command as the first element (including subcommands).
+func _add_argument_autocompletes(p_argv: PackedStringArray) -> void:
+	if p_argv.is_empty():
+		return
+	var command: String = p_argv[0]
+	var last_arg: int = p_argv.size() - 1
+	var key := [command, last_arg - 1] # Argument indices are 0-based.
 	if _argument_autocomplete_sources.has(key):
 		var argument_values = _argument_autocomplete_sources[key].call()
-		if not _validate_autocomplete_result(argument_values, command_name):
+		if not _validate_autocomplete_result(argument_values, command):
 			argument_values = []
 		var matches: PackedStringArray = []
 		for value in argument_values:
-			if str(value).begins_with(argv[last_arg]):
-				matches.append(_entry.text.substr(0, _entry.text.length() - argv[last_arg].length()) + str(value))
+			if str(value).begins_with(p_argv[last_arg]):
+				matches.append(_entry.text.substr(0, _entry.text.length() - p_argv[last_arg].length()) + str(value))
 		matches.sort()
 		_autocomplete_matches.append_array(matches)
+
 
 ## Adds auto-completes based on the history
 func _add_history_autocompletes() -> void:
@@ -904,6 +914,7 @@ func _add_history_autocompletes() -> void:
 		for i in range(_history.size() - 1, -1, -1):
 			if _history.get_entry(i).begins_with(_entry.text):
 				_autocomplete_matches.append(_history.get_entry(i))
+
 
 ## Adds subcommand auto-complete suggestions based on registered commands
 ## and the current user input
@@ -915,21 +926,21 @@ func _add_subcommand_autocompletes(typed_val: String) -> void:
 		var cmd_split = cmd.split(" ")
 		if len(cmd_split) < len(typed_val_tokens):
 			continue
-		
+
 		var last_match: int = 0
 		for i in len(typed_val_tokens):
 			if cmd_split[i] != typed_val_tokens[i]:
 				break
 			last_match += 1
-			
+
 		if last_match < len(typed_val_tokens) - 1:
 			continue
-		
+
 		if len(cmd_split) >= len(typed_val_tokens) \
 			and cmd_split[last_match].begins_with(typed_val_tokens[-1]):
 			var partial_cmd_arr: PackedStringArray = cmd_split.slice(0, last_match + 1)
 			result.get_or_add(" ".join(partial_cmd_arr))
-			
+
 	var matches = result.keys()
 	matches.sort()
 	_autocomplete_matches.append_array(matches)
@@ -1006,7 +1017,7 @@ func _hide_console() -> void:
 	if _control.visible:
 		_control.hide()
 		_control_block.hide()
-		
+
 		if _options.pause_when_open:
 			if not _was_already_paused:
 				get_tree().paused = false
