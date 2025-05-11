@@ -89,32 +89,42 @@ func _hide_scrollbars() -> void:
 
 class CommandEntryHighlighter extends SyntaxHighlighter:
 	var command_found_color: Color
+	var subcommand_color: Color
 	var command_not_found_color: Color
 	var text_color: Color
 
 	func _get_line_syntax_highlighting(line: int) -> Dictionary:
-		var command_color: Color
-		var command: String
 		var text: String = get_text_edit().text
-		var end: int = 0
-		var built_text: String = ""
-		var last_known_cmd: int = 0
+		var command_end_idx: int = -1 # index where last recognized command ends (with subcommands)
 
-		for c in text:
-			built_text += c
-			end += 1
-			if LimboConsole.has_command(built_text):
-				last_known_cmd = end
+		var argv: PackedStringArray = [] # argument vector (aka tokens)
+		var argi: PackedInt32Array = [] # argument starting indices in text
+		var start: int = 0
+		var cur: int = 0
+		for char in text + ' ':
+			if char == ' ':
+				if cur > start:
+					argv.append(text.substr(start, cur - start))
+					argi.append(start)
+					var maybe_command: String = ' '.join(argv)
+					if LimboConsole.has_command(maybe_command) or LimboConsole.has_alias(maybe_command):
+						command_end_idx = cur
+				start = cur + 1
+			cur += 1
 
-		if last_known_cmd > 0:
-			command = text.substr(0, last_known_cmd).strip_edges()
+		var command_color: Color
+		var arg_start_idx: int = 0 # index where arguments start
+
+		if command_end_idx > -1:
 			command_color = command_found_color
+			arg_start_idx = command_end_idx + 1
 		else:
-			command = text.strip_edges()
 			command_color = command_not_found_color
-			last_known_cmd = end
+			arg_start_idx = argi[1] if argi.size() > 1 else text.length()
 
-		return {
-			0: {"color": command_color},
-			last_known_cmd: {"color": text_color},
-		}
+		var result: Dictionary
+		result[0] = { "color": command_color }
+		if command_end_idx > -1 and argi.size() > 1:
+			result[argi[1]] = { "color": subcommand_color }
+		result[arg_start_idx] = { "color": text_color }
+		return result

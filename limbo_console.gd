@@ -43,6 +43,7 @@ var _output_debug_color: Color
 var _entry_text_color: Color
 var _entry_hint_color: Color
 var _entry_command_found_color: Color
+var _entry_subcommand_color: Color
 var _entry_command_not_found_color: Color
 
 var _options: ConsoleOptions
@@ -604,6 +605,7 @@ func _init_theme() -> void:
 	_entry_text_color = theme.get_color(&"entry_text_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_hint_color = theme.get_color(&"entry_hint_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_found_color = theme.get_color(&"entry_command_found_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_subcommand_color = theme.get_color(&"entry_subcommand_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_not_found_color = theme.get_color(&"entry_command_not_found_color", CONSOLE_COLORS_THEME_TYPE)
 
 	_output.add_theme_color_override(&"default_color", _output_text_color)
@@ -611,6 +613,7 @@ func _init_theme() -> void:
 	_entry.add_theme_color_override(&"hint_color", _entry_hint_color)
 	_entry.syntax_highlighter.command_found_color = _entry_command_found_color
 	_entry.syntax_highlighter.command_not_found_color = _entry_command_not_found_color
+	_entry.syntax_highlighter.subcommand_color = _entry_subcommand_color
 	_entry.syntax_highlighter.text_color = _entry_text_color
 
 
