@@ -97,15 +97,24 @@ class CommandEntryHighlighter extends SyntaxHighlighter:
 		var command: String
 		var text: String = get_text_edit().text
 		var end: int = 0
+		var built_text: String = ""
+		var last_known_cmd: int = 0
 
 		for c in text:
-			if c == ' ':
-				break
+			built_text += c
 			end += 1
-		command = text.substr(0, end).strip_edges()
-		command_color = command_found_color if LimboConsole.has_command(command) or LimboConsole.has_alias(command) else command_not_found_color
+			if LimboConsole.has_command(built_text):
+				last_known_cmd = end
+
+		if last_known_cmd > 0:
+			command = text.substr(0, last_known_cmd).strip_edges()
+			command_color = command_found_color
+		else:
+			command = text.strip_edges()
+			command_color = command_not_found_color
+			last_known_cmd = end
 
 		return {
 			0: {"color": command_color},
-			end: {"color": text_color},
-			}
+			last_known_cmd: {"color": text_color},
+		}
