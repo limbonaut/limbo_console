@@ -894,7 +894,7 @@ func _add_argument_autocompletes(p_argv: PackedStringArray) -> void:
 		return
 	var command: String = p_argv[0]
 	var last_arg: int = p_argv.size() - 1
-	var key := [command, last_arg - 1] # Argument indicies are 0-based.
+	var key := [command, last_arg - 1] # Argument indices are 0-based.
 	if _argument_autocomplete_sources.has(key):
 		var argument_values = _argument_autocomplete_sources[key].call()
 		if not _validate_autocomplete_result(argument_values, command):
