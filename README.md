@@ -55,13 +55,13 @@ Several basic types are supported for command arguments, such as `bool`, `int`, 
 Autocompletion works for both command names and history. It can also be implemented for specific command arguments, as shown in the following example:
 ```gdscript
 LimboConsole.register_command(teleport, "teleport", "teleport to site on this level")
-LimboConsole.add_argument_autocomplete_source("teleport", 1,
+LimboConsole.add_argument_autocomplete_source("teleport", 0,
         func(): return ["entrance", "caves", "boss"]
 )
 ```
 For a dynamically generated list of autocomplete values, the code could look like this:
 ```gdscript
-LimboConsole.add_argument_autocomplete_source("teleport", 1,
+LimboConsole.add_argument_autocomplete_source("teleport", 0,
         func(): return get_tree().get_nodes_in_group("teleportation_site").map(
                 func(node): return node.name)
 )
