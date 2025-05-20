@@ -877,13 +877,13 @@ func _parse_dictionary_arg(p_text: String):
 					continue
 				else:
 					if key is String:
-						if key.is_valid_float(): key = key.to_float()
-						elif key.is_valid_int(): key = key.to_int()
+						if key.is_valid_int(): key = key.to_int()
+						elif key.is_valid_float(): key = key.to_float()
 						elif _validate_const(key) != null: key = _validate_const(key)
 						else: key = key.trim_prefix('"').trim_suffix('"')
 					if token is String:
-						if token.is_valid_float(): token = token.to_float()
-						elif token.is_valid_int(): token = token.to_int()
+						if token.is_valid_int(): token = token.to_int()
+						elif token.is_valid_float(): token = token.to_float()
 						elif _validate_const(token) != null: token = _validate_const(token)
 						else: token = token.trim_prefix('"').trim_suffix('"')
 					comp[key] = token
@@ -964,8 +964,8 @@ func _parse_array_arg(p_text: String):
 					continue
 				else:
 					if token is String:
-						if token.is_valid_float(): token = token.to_float()
-						elif token.is_valid_int(): token = token.to_int()
+						if token.is_valid_int(): token = token.to_int()
+						elif token.is_valid_float(): token = token.to_float()
 						elif _validate_const(token) != null: token = _validate_const(token)
 						else: token = token.trim_prefix('"').trim_suffix('"')
 					comp.append(token)
