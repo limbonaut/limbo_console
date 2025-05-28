@@ -48,7 +48,7 @@ func _input(event: InputEvent) -> void:
 	if not has_focus():
 		return
 	if event is InputEventKey:
-		if event.keycode == KEY_ENTER:
+		if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
 			if event.is_pressed():
 				submit_text()
 			get_viewport().set_input_as_handled()
@@ -80,7 +80,6 @@ func _draw() -> void:
 
 func submit_text() -> void:
 	text_submitted.emit(text)
-	clear()
 
 
 func _hide_scrollbars() -> void:
@@ -90,23 +89,42 @@ func _hide_scrollbars() -> void:
 
 class CommandEntryHighlighter extends SyntaxHighlighter:
 	var command_found_color: Color
+	var subcommand_color: Color
 	var command_not_found_color: Color
 	var text_color: Color
 
 	func _get_line_syntax_highlighting(line: int) -> Dictionary:
-		var command_color: Color
-		var command: String
 		var text: String = get_text_edit().text
-		var end: int = 0
+		var command_end_idx: int = -1 # index where last recognized command ends (with subcommands)
 
-		for c in text:
-			if c == ' ':
-				break
-			end += 1
-		command = text.substr(0, end).strip_edges()
-		command_color = command_found_color if LimboConsole.has_command(command) or LimboConsole.has_alias(command) else command_not_found_color
+		var argv: PackedStringArray = [] # argument vector (aka tokens)
+		var argi: PackedInt32Array = [] # argument starting indices in text
+		var start: int = 0
+		var cur: int = 0
+		for char in text + ' ':
+			if char == ' ':
+				if cur > start:
+					argv.append(text.substr(start, cur - start))
+					argi.append(start)
+					var maybe_command: String = ' '.join(argv)
+					if LimboConsole.has_command(maybe_command) or LimboConsole.has_alias(maybe_command):
+						command_end_idx = cur
+				start = cur + 1
+			cur += 1
 
-		return {
-			0: {"color": command_color},
-			end: {"color": text_color},
-			}
+		var command_color: Color
+		var arg_start_idx: int = 0 # index where arguments start
+
+		if command_end_idx > -1:
+			command_color = command_found_color
+			arg_start_idx = command_end_idx + 1
+		else:
+			command_color = command_not_found_color
+			arg_start_idx = argi[1] if argi.size() > 1 else text.length()
+
+		var result: Dictionary
+		result[0] = { "color": command_color }
+		if command_end_idx > -1 and argi.size() > 1:
+			result[argi[1]] = { "color": subcommand_color }
+		result[arg_start_idx] = { "color": text_color }
+		return result
