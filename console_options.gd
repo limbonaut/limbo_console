@@ -38,3 +38,6 @@ const CONFIG_PATH := "res://addons/limbo_console.cfg"
 @export_category("autoexec")
 @export var autoexec_script: String = "user://autoexec.lcs"
 @export var autoexec_auto_create: bool = true
+
+@export_category("init_script")
+@export var init_script: String = "res://addons/limbo_console_script.gd"
