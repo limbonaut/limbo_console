@@ -4,7 +4,6 @@ extends CanvasLayer
 signal toggled(is_shown)
 
 const THEME_DEFAULT := "res://addons/limbo_console/res/default_theme.tres"
-const HISTORY_FILE := "user://limbo_console_history.log"
 
 const AsciiArt := preload("res://addons/limbo_console/ascii_art.gd")
 const BuiltinCommands := preload("res://addons/limbo_console/builtin_commands.gd")
@@ -12,6 +11,10 @@ const CommandEntry := preload("res://addons/limbo_console/command_entry.gd")
 const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
 const Util := preload("res://addons/limbo_console/util.gd")
+const CommandHistory := preload("res://addons/limbo_console/command_history.gd")
+const HistoryGui := preload("res://addons/limbo_console/history_gui.gd")
+
+const MAX_SUBCOMMANDS: int = 4
 
 ## If false, prevents console from being shown. Commands can still be executed from code.
 var enabled: bool = true:
@@ -19,11 +22,12 @@ var enabled: bool = true:
 		enabled = value
 		set_process_input(enabled)
 		if not enabled and _control.visible:
-			_is_opening = false
+			_is_open = false
 			set_process(false)
 			_hide_console()
 
 var _control: Control
+var _history_gui: HistoryGui
 var _control_block: Control
 var _output: RichTextLabel
 var _entry: CommandEntry
@@ -39,16 +43,17 @@ var _output_debug_color: Color
 var _entry_text_color: Color
 var _entry_hint_color: Color
 var _entry_command_found_color: Color
+var _entry_subcommand_color: Color
 var _entry_command_not_found_color: Color
 
 var _options: ConsoleOptions
-var _commands: Dictionary # command_name => Callable
-var _aliases: Dictionary # alias_name => command_to_run: PackedStringArray
+var _commands: Dictionary # "command" => Callable, or "command sub1 sub2" =>  Callable
+var _aliases: Dictionary # "alias" => command_to_run: PackedStringArray (alias may contain subcommands)
 var _command_descriptions: Dictionary # command_name => description_text
 var _command_precalls: Dictionary # command_name => Callable
 var _argument_autocomplete_sources: Dictionary # [command_name, arg_idx] => Callable
-var _history: PackedStringArray
-var _hist_idx: int = -1
+var _history: CommandHistory
+var _history_iter: CommandHistory.WrappingIterator
 var _autocomplete_matches: PackedStringArray
 var _eval_inputs: Dictionary
 var _silent: bool = false
@@ -56,7 +61,7 @@ var _was_already_paused: bool = false
 
 var _open_t: float = 0.0
 var _open_speed: float = 5.0
-var _is_opening: bool = false
+var _is_open: bool = false
 
 
 func _init() -> void:
@@ -66,6 +71,11 @@ func _init() -> void:
 	_options = ConsoleOptions.new()
 	ConfigMapper.load_from_config(_options)
 
+	_history = CommandHistory.new()
+	if _options.persist_history:
+		_history.load()
+	_history_iter = _history.create_iterator()
+
 	_build_gui()
 	_init_theme()
 	_control.hide()
@@ -73,14 +83,8 @@ func _init() -> void:
 
 	_open_speed = _options.open_speed
 
-	if _options.persist_history:
-		_load_history()
-
 	if _options.disable_in_release_build:
 		enabled = OS.is_debug_build()
-
-	_entry.text_submitted.connect(_on_entry_text_submitted)
-	_entry.text_changed.connect(_on_entry_text_changed)
 
 
 func _ready() -> void:
@@ -92,52 +96,85 @@ func _ready() -> void:
 	_add_aliases_from_config()
 	_run_autoexec_script()
 	_entry.autocomplete_requested.connect(_autocomplete)
+	_entry.text_submitted.connect(_on_entry_text_submitted)
+	_entry.text_changed.connect(_on_entry_text_changed)
 
 
 func _exit_tree() -> void:
 	if _options.persist_history:
-		_save_history()
+		_history.trim(_options.history_lines)
+		_history.save()
+
+
+func _handle_command_input(p_event: InputEvent) -> void:
+	var handled := true
+	if not _is_open:
+		pass  # Don't accept input while closing console.
+	elif p_event.keycode == KEY_UP:
+		_fill_entry(_history_iter.prev())
+		_clear_autocomplete()
+		_update_autocomplete()
+	elif p_event.keycode == KEY_DOWN:
+		_fill_entry(_history_iter.next())
+		_clear_autocomplete()
+		_update_autocomplete()
+	elif p_event.is_action_pressed("limbo_auto_complete_reverse"):
+		_reverse_autocomplete()
+	elif p_event.keycode == KEY_TAB:
+		_autocomplete()
+	elif p_event.keycode == KEY_PAGEUP:
+		var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
+		scroll_bar.value -= scroll_bar.page
+	elif p_event.keycode == KEY_PAGEDOWN:
+		var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
+		scroll_bar.value += scroll_bar.page
+	else:
+		handled = false
+	if handled:
+		get_viewport().set_input_as_handled()
+
+
+func _handle_history_input(p_event: InputEvent):
+	# Allow tab complete (reverse)
+	if p_event.is_action_pressed("limbo_auto_complete_reverse"):
+		_reverse_autocomplete()
+		get_viewport().set_input_as_handled()
+	# Allow tab complete (forward)
+	elif p_event.keycode == KEY_TAB and p_event.is_pressed():
+		_autocomplete()
+		get_viewport().set_input_as_handled()
+	# Perform search
+	elif p_event is InputEventKey:
+		_history_gui.search(_entry.text)
+		_entry.grab_focus()
+
+	# Make sure entry is always focused
+	_entry.grab_focus()
 
 
 func _input(p_event: InputEvent) -> void:
-	if p_event.is_echo():
-		return
 	if p_event.is_action_pressed("limbo_console_toggle"):
 		toggle_console()
 		get_viewport().set_input_as_handled()
+	# Check to see if the history gui should open
+	elif _control.visible and p_event.is_action_pressed("limbo_console_search_history"):
+		toggle_history()
+		get_viewport().set_input_as_handled()
+	elif _history_gui.visible and p_event is InputEventKey:
+		_handle_history_input(p_event)
 	elif _control.visible and p_event is InputEventKey and p_event.is_pressed():
-		var handled := true
-		if not _is_opening:
-			pass # Don't accept input while closing console.
-		elif p_event.keycode == KEY_UP:
-			_hist_idx += 1
-			_fill_entry_from_history()
-		elif p_event.keycode == KEY_DOWN:
-			_hist_idx -= 1
-			_fill_entry_from_history()
-		elif p_event.keycode == KEY_TAB:
-			_autocomplete()
-		elif p_event.keycode == KEY_PAGEUP:
-			var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
-			scroll_bar.value -= scroll_bar.page
-		elif p_event.keycode == KEY_PAGEDOWN:
-			var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
-			scroll_bar.value += scroll_bar.page
-		else:
-			handled = false
-		if handled:
-			get_viewport().set_input_as_handled()
+		_handle_command_input(p_event)
 
 
 func _process(delta: float) -> void:
 	var done_sliding := false
-	if _is_opening:
-		_open_t = move_toward(_open_t, 1.0, _open_speed * delta)
-		if _open_t == 1:
+	if _is_open:
+		_open_t = move_toward(_open_t, 1.0, _open_speed * delta * 1.0/Engine.time_scale)
+		if _open_t == 1.0:
 			done_sliding = true
 	else: # We close faster than opening.
-		_open_t = move_toward(_open_t, 0.0, _open_speed * delta * 1.5)
-		if _open_t == 0:
+		_open_t = move_toward(_open_t, 0.0, _open_speed * delta * 1.5 * 1.0/Engine.time_scale)
+		if is_zero_approx(_open_t):
 			done_sliding = true
 
 	var eased := ease(_open_t, -1.75)
@@ -146,7 +183,7 @@ func _process(delta: float) -> void:
 
 	if done_sliding:
 		set_process(false)
-		if not _is_opening:
+		if not _is_open:
 			_hide_console()
 
 
@@ -155,32 +192,52 @@ func _process(delta: float) -> void:
 
 func open_console() -> void:
 	if enabled:
-		_is_opening = true
+		_is_open = true
 		set_process(true)
 		_show_console()
 
 
 func close_console() -> void:
 	if enabled:
-		_is_opening = false
+		_is_open = false
 		set_process(true)
+		_history_gui.visible = false
+		if _options.persist_history:
+			_history.save()
 		# _hide_console() is called in _process()
 
 
-func is_visible() -> bool:
-	return _control.visible
+func is_open() -> bool:
+	return _is_open
 
 
 func toggle_console() -> void:
-	if _is_opening:
+	if _is_open:
 		close_console()
 	else:
 		open_console()
 
 
+func toggle_history() -> void:
+	_history_gui.set_visibility(not _history_gui.visible)
+	# Whenever the history gui becomes visible, make sure it has the latest
+	# history and do an initial search
+	if _history_gui.visible:
+		_history_gui.search(_entry.text)
+
+
 ## Clears all messages in the console.
 func clear_console() -> void:
 	_output.text = ""
+
+
+## Erases the history that is persisted to the disk
+func erase_history() -> void:
+	_history.clear()
+	var file := FileAccess.open(CommandHistory.HISTORY_FILE, FileAccess.WRITE)
+	if file:
+		file.store_string("")
+		file.close()
 
 
 ## Prints an info message to the console and the output.
@@ -218,15 +275,25 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 		print(Util.bbcode_strip(p_line))
 
 
-## Registers a new command for the specified callable. [br]
-## Optionally, you can provide a name and a description.
+## Registers a callable as a command, with optional name and description.
+## Name can have up to 4 space-separated identifiers (e.g., "command sub1 sub2 sub3"),
+## using letters, digits, or underscores, starting with a non-digit.
 func register_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
+	if p_name and not Util.is_valid_command_sequence(p_name):
+		push_error("LimboConsole: Failed to register command: %s. Name can have up to 4 space-separated identifiers, using letters, digits, or underscores, starting with non-digit." % [p_name])
+		return
+
 	if not _validate_callable(p_func):
 		push_error("LimboConsole: Failed to register command: %s" % [p_func if p_name.is_empty() else p_name])
 		return
 	var name: String = p_name
 	if name.is_empty():
+		if p_func.is_custom():
+			push_error("LimboConsole: Failed to register command: Callable is not method and no name was provided")
+			return
 		name = p_func.get_method().trim_prefix("_").trim_prefix("cmd_")
+	if not OS.is_debug_build() and _options.commands_disabled_in_release.has(name):
+		return
 	if _commands.has(name):
 		push_error("LimboConsole: Command already registered: " + p_name)
 		return
@@ -332,6 +399,7 @@ func get_aliases() -> PackedStringArray:
 
 ## Returns the alias's actual command as an argument vector.
 func get_alias_argv(p_alias: String) -> PackedStringArray:
+	# TODO: I believe _aliases values are stored as an array so this iis unneccessary?
 	return _aliases.get(p_alias, [p_alias]).duplicate()
 
 
@@ -344,8 +412,12 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 	if not has_command(p_command):
 		push_error("LimboConsole: Can't add autocomplete source: command doesn't exist: ", p_command)
 		return
-	if p_argument < 1 or p_argument > 5:
+	if p_argument < 0 or p_argument > 4:
 		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
+		return
+	var argument_values = p_source.call()
+	if not _validate_autocomplete_result(argument_values, p_command):
+		push_error("LimboConsole: Failed to add argument autocomplete source: Callable must return an array.")
 		return
 	var key := [p_command, p_argument]
 	_argument_autocomplete_sources[key] = p_source
@@ -358,14 +430,14 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		return
 
 	var argv: PackedStringArray = _parse_command_line(p_command_line)
-	var expanded_argv: PackedStringArray = _expand_alias(argv)
+	var expanded_argv: PackedStringArray = _join_subcommands(_expand_alias(argv))
 	var command_name: String = expanded_argv[0]
 	var command_args: Array = []
 
 	_silent = p_silent
 	if not p_silent:
 		var history_line: String = " ".join(argv)
-		_push_history(history_line)
+		_history.push_entry(history_line)
 		info("[color=%s][b]>[/b] %s[/color] %s" %
 				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
 
@@ -437,9 +509,10 @@ func usage(p_command: String) -> Error:
 
 	var usage_line: String = "Usage: %s" % [p_command]
 	var arg_lines: String = ""
+	var values_lines: String = ""
 	var required_args: int = method_info.args.size() - method_info.default_args.size()
 
-	for i in range(method_info.args.size()):
+	for i in range(method_info.args.size() - callable.get_bound_arguments_count()):
 		var arg_name: String = method_info.args[i].name.trim_prefix("p_")
 		var arg_type: int = method_info.args[i].type
 		if i < required_args:
@@ -454,6 +527,12 @@ func usage(p_command: String) -> Error:
 				def_value = "\"" + def_value + "\""
 			def_spec = " = %s" % [def_value]
 		arg_lines += "  %s: %s%s\n" % [arg_name, type_string(arg_type) if arg_type != TYPE_NIL else "Variant", def_spec]
+		if _argument_autocomplete_sources.has([p_command, i]):
+			var auto_complete_callable: Callable = _argument_autocomplete_sources[[p_command, i]]
+			var arg_autocompletes = auto_complete_callable.call()
+			if len(arg_autocompletes) > 0:
+				var values: String = str(arg_autocompletes).replace("[", "").replace("]", "")
+				values_lines += " %s: %s\n" % [arg_name, values]
 	arg_lines = arg_lines.trim_suffix('\n')
 
 	print_line(usage_line)
@@ -469,6 +548,9 @@ func usage(p_command: String) -> Error:
 	if not arg_lines.is_empty():
 		print_line("Arguments:")
 		print_line(arg_lines)
+	if not values_lines.is_empty():
+		print_line("Values:")
+		print_line(values_lines)
 	return OK
 
 
@@ -539,6 +621,10 @@ func _build_gui() -> void:
 
 	_control.modulate = Color(1.0, 1.0, 1.0, _options.opacity)
 
+	_history_gui = HistoryGui.new(_history)
+	_output.add_child(_history_gui)
+	_history_gui.visible = false
+
 
 func _init_theme() -> void:
 	var theme: Theme
@@ -558,6 +644,7 @@ func _init_theme() -> void:
 	_entry_text_color = theme.get_color(&"entry_text_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_hint_color = theme.get_color(&"entry_hint_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_found_color = theme.get_color(&"entry_command_found_color", CONSOLE_COLORS_THEME_TYPE)
+	_entry_subcommand_color = theme.get_color(&"entry_subcommand_color", CONSOLE_COLORS_THEME_TYPE)
 	_entry_command_not_found_color = theme.get_color(&"entry_command_not_found_color", CONSOLE_COLORS_THEME_TYPE)
 
 	_output.add_theme_color_override(&"default_color", _output_text_color)
@@ -565,6 +652,7 @@ func _init_theme() -> void:
 	_entry.add_theme_color_override(&"hint_color", _entry_hint_color)
 	_entry.syntax_highlighter.command_found_color = _entry_command_found_color
 	_entry.syntax_highlighter.command_not_found_color = _entry_command_not_found_color
+	_entry.syntax_highlighter.subcommand_color = _entry_subcommand_color
 	_entry.syntax_highlighter.text_color = _entry_text_color
 
 
@@ -618,32 +706,6 @@ func _run_autoexec_script() -> void:
 		execute_script(_options.autoexec_script)
 
 
-func _load_history() -> void:
-	var file := FileAccess.open(HISTORY_FILE, FileAccess.READ)
-	if not file:
-		return
-	while not file.eof_reached():
-		var line: String = file.get_line().strip_edges()
-		if not line.is_empty():
-			_history.append(line)
-	file.close()
-
-
-func _save_history() -> void:
-	# Trim history first
-	var max_lines: int = maxi(_options.history_lines, 0)
-	if _history.size() > max_lines:
-		_history = _history.slice(_history.size() - max_lines)
-
-	var file := FileAccess.open(HISTORY_FILE, FileAccess.WRITE)
-	if not file:
-		push_error("LimboConsole: Failed to save console history to file: ", HISTORY_FILE)
-		return
-	for line in _history:
-		file.store_line(line)
-	file.close()
-
-
 # *** PARSING
 
 
@@ -680,12 +742,39 @@ func _parse_command_line(p_line: String) -> PackedStringArray:
 	return argv
 
 
-## Substitutes alias with its real command in argv.
+## Joins recognized subcommands in the argument vector into a single
+## space-separated command sequence at index zero.
+func _join_subcommands(p_argv: PackedStringArray) -> PackedStringArray:
+	for num_parts in range(MAX_SUBCOMMANDS, 1, -1):
+		if p_argv.size() >= num_parts:
+			var cmd: String = ' '.join(p_argv.slice(0, num_parts))
+			if has_command(cmd) or has_alias(cmd):
+				var argv: PackedStringArray = [cmd]
+				return argv + p_argv.slice(num_parts)
+	return p_argv
+
+
+## Substitutes an array of strings with its real command in argv.
+## Will recursively expand aliases until no aliases are left.
 func _expand_alias(p_argv: PackedStringArray) -> PackedStringArray:
-	if p_argv.size() > 0 and _aliases.has(p_argv[0]):
-		return _aliases.get(p_argv[0]) + p_argv.slice(1)
-	else:
+	var argv: PackedStringArray = p_argv.duplicate()
+	var result := PackedStringArray()
+	const max_depth: int = 1000
+	var current_depth: int = 0
+	while not argv.is_empty() and current_depth != max_depth:
+		argv = _join_subcommands(argv)
+		var current: String = argv[0]
+		argv.remove_at(0)
+		var alias_argv: PackedStringArray = _aliases.get(current, [])
+		current_depth += 1
+		if not alias_argv.is_empty():
+			argv = alias_argv + argv
+		else:
+			result.append(current)
+	if current_depth >= max_depth:
+		push_error("LimboConsole: Max depth for alias reached. Is there a loop in your aliasing?")
 		return p_argv
+	return result
 
 
 ## Converts arguments from String to types expected by the callable, and returns true if successful.
@@ -697,14 +786,14 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 	if method_info.is_empty():
 		error("Couldn't find method info for: " + p_callable.get_method())
 		return false
-
-	var num_args: int = p_argv.size() - 1
+	var num_bound_args: int = p_callable.get_bound_arguments_count()
+	var num_args: int = p_argv.size() + num_bound_args - 1
 	var max_args: int = method_info.args.size()
 	var num_with_defaults: int = method_info.default_args.size()
 	var required_args: int = max_args - num_with_defaults
 
 	# Join all arguments into a single string if the callable accepts a single string argument.
-	if max_args == 1 and method_info.args[0].type == TYPE_STRING:
+	if max_args - num_bound_args == 1 and method_info.args[0].type == TYPE_STRING:
 		var a: String = " ".join(p_argv.slice(1))
 		if a.left(1) == '"' and a.right(1) == '"':
 			a = a.trim_prefix('"').trim_suffix('"')
@@ -981,16 +1070,352 @@ func _parse_array_arg(p_text: String):
 	return comp
 
 
-# *** AUTOCOMPLETE
+func _parse_dictionary_arg(p_text: String):
+	var ended: bool = false
+	var comp: Dictionary
+	var key: Variant = ""
+	var brackets: String
+	var token: Variant = ""
+	var in_quotes: bool
+	for i in range(1, p_text.length()):
+		var c: String = p_text[i]
+		if ended:
+			error("Failed to parse dictionary argument: Founded text after dictionary end: %s" % p_text.substr(i, p_text.length() - i))
+			return null
+		if in_quotes:
+			token += c
+			if c == '"':
+				in_quotes = false
+		elif brackets:
+			token += c
+			if c == '"':
+				in_quotes = not in_quotes
+			elif c in ['(', '[', '{']:
+				brackets += c
+			elif c in [')', ']', '}'] and brackets.length() > 1:
+				if brackets[-1] == '(':
+					brackets = brackets.erase(brackets.rfind('('))
+				elif brackets[-1] == '[':
+					brackets = brackets.erase(brackets.rfind('['))
+				elif brackets[-1] == '{':
+					brackets = brackets.erase(brackets.rfind('{'))
+			elif brackets == '(' and c == ')':
+				token = _parse_vector_arg(token)
+				if token == null:
+					error("Failed to parse dictionary argument: Parsed sub vector are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('('))
+			elif brackets == '[' and c == ']':
+				token = _parse_array_arg(token)
+				if token == null:
+					error("Failed to parse dictionary argument: Parsed sub array are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('['))
+			elif brackets == '{' and c == '}':
+				token = _parse_dictionary_arg(token)
+				if token == null:
+					error("Failed to parse dictionary argument: Parsed sub dictionary are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('{'))
+		else: match c:
+			'"':
+				in_quotes = true
+				token += c
+			'}', ',':
+				if str(key).is_empty() and str(token):
+					error("Failed to parse dictionary argument: key or value not founded: key: \"%s\", value: \"%s\"" % [key, token])
+					return null
+				elif str(key).is_empty() and str(token).is_empty():
+					continue
+				else:
+					if key is String:
+						if key.is_valid_int(): key = key.to_int()
+						elif key.is_valid_float(): key = key.to_float()
+						elif _validate_const(key) != null: key = _validate_const(key)
+						else: key = key.trim_prefix('"').trim_suffix('"')
+					if token is String:
+						if token.is_valid_int(): token = token.to_int()
+						elif token.is_valid_float(): token = token.to_float()
+						elif _validate_const(token) != null: token = _validate_const(token)
+						else: token = token.trim_prefix('"').trim_suffix('"')
+					comp[key] = token
+					token = ''
+					key = ''
+					if c == '}':
+						ended = true
+			'(', '[', '{':
+				brackets += c
+				token = c
+			':', '=':
+				if str(key):
+					error("Failed to parse dictionary argument: Bad formatting: \"%s\"" % p_text)
+					info(format_tip("Tip: Dictionary should be in format: \"{key:value, key2:value2}\". Assignment can be ':' or '='. Key and value can be any type (eg: String, int, Vector, etc.)"))
+					return null
+				else: 
+					key = token
+					token = ""
+			_:
+				if c == ' ' and not in_quotes: continue
+				token += c
+	return comp
 
+
+func _parse_array_arg(p_text: String):
+	var ended: bool
+	var comp: Array
+	var token = ""
+	var brackets: String
+	var in_quotes: bool
+	for i in range(1, p_text.length()):
+		var c: String = p_text[i]
+		if ended:
+			error("Failed to parse array argument: Founded text after array end: %s" % p_text.substr(i, p_text.length() - i))
+			return null
+		elif in_quotes:
+			token += c
+			if c == '"':
+				in_quotes = false
+		elif brackets:
+			token += c
+			if c == '"':
+				in_quotes = not in_quotes
+			elif c in ['(', '[', '{']:
+				brackets += c
+			elif c in [')', ']', '}'] and brackets.length() > 1:
+				if brackets[-1] == '(':
+					brackets = brackets.erase(brackets.rfind('('))
+				elif brackets[-1] == '[':
+					brackets = brackets.erase(brackets.rfind('['))
+				elif brackets[-1] == '{':
+					brackets = brackets.erase(brackets.rfind('{'))
+			elif brackets == '(' and c == ')':
+				token = _parse_vector_arg(token)
+				if token == null:
+					error("Failed to parse array argument: Parsed sub vector are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('('))
+			elif brackets == '[' and c == ']':
+				token = _parse_array_arg(token)
+				if token == null:
+					error("Failed to parse array argument: Parsed sub array are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('['))
+			elif brackets == '{' and c == '}':
+				token = _parse_dictionary_arg(token)
+				if token == null:
+					error("Failed to parse array argument: Parsed sub dictionary are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('{'))
+		else: match c:
+			'"':
+				in_quotes = true
+				token += c
+			',', ' ', ']':
+				if p_text[i - 1] in [' ', ',', '[']:
+					if c == ']': ended = true
+					continue
+				else:
+					if token is String:
+						if token.is_valid_int(): token = token.to_int()
+						elif token.is_valid_float(): token = token.to_float()
+						elif _validate_const(token) != null: token = _validate_const(token)
+						else: token = token.trim_prefix('"').trim_suffix('"')
+					comp.append(token)
+					token = ''
+					if c == ']':
+						ended = true
+			'(', '[', '{':
+				brackets += c
+				token = c
+			_:
+				if c == ' ' and not in_quotes: continue
+				token += c
+	return comp
+
+
+func _parse_dictionary_arg(p_text: String):
+	var ended: bool = false
+	var comp: Dictionary
+	var key: Variant = ""
+	var brackets: String
+	var token: Variant = ""
+	var in_quotes: bool
+	for i in range(1, p_text.length()):
+		var c: String = p_text[i]
+		if ended:
+			error("Failed to parse dictionary argument: Founded text after dictionary end: %s" % p_text.substr(i, p_text.length() - i))
+			return null
+		if in_quotes:
+			token += c
+			if c == '"':
+				in_quotes = false
+		elif brackets:
+			token += c
+			if c == '"':
+				in_quotes = not in_quotes
+			elif c in ['(', '[', '{']:
+				brackets += c
+			elif c in [')', ']', '}'] and brackets.length() > 1:
+				if brackets[-1] == '(':
+					brackets = brackets.erase(brackets.rfind('('))
+				elif brackets[-1] == '[':
+					brackets = brackets.erase(brackets.rfind('['))
+				elif brackets[-1] == '{':
+					brackets = brackets.erase(brackets.rfind('{'))
+			elif brackets == '(' and c == ')':
+				token = _parse_vector_arg(token)
+				if token == null:
+					error("Failed to parse dictionary argument: Parsed sub vector are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('('))
+			elif brackets == '[' and c == ']':
+				token = _parse_array_arg(token)
+				if token == null:
+					error("Failed to parse dictionary argument: Parsed sub array are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('['))
+			elif brackets == '{' and c == '}':
+				token = _parse_dictionary_arg(token)
+				if token == null:
+					error("Failed to parse dictionary argument: Parsed sub dictionary are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('{'))
+		else: match c:
+			'"':
+				in_quotes = true
+				token += c
+			'}', ',':
+				if str(key).is_empty() and str(token):
+					error("Failed to parse dictionary argument: key or value not founded: key: \"%s\", value: \"%s\"" % [key, token])
+					return null
+				elif str(key).is_empty() and str(token).is_empty():
+					continue
+				else:
+					if key is String:
+						if key.is_valid_int(): key = key.to_int()
+						elif key.is_valid_float(): key = key.to_float()
+						elif _validate_const(key) != null: key = _validate_const(key)
+						else: key = key.trim_prefix('"').trim_suffix('"')
+					if token is String:
+						if token.is_valid_int(): token = token.to_int()
+						elif token.is_valid_float(): token = token.to_float()
+						elif _validate_const(token) != null: token = _validate_const(token)
+						else: token = token.trim_prefix('"').trim_suffix('"')
+					comp[key] = token
+					token = ''
+					key = ''
+					if c == '}':
+						ended = true
+			'(', '[', '{':
+				brackets += c
+				token = c
+			':', '=':
+				if str(key):
+					error("Failed to parse dictionary argument: Bad formatting: \"%s\"" % p_text)
+					info(format_tip("Tip: Dictionary should be in format: \"{key:value, key2:value2}\". Assignment can be ':' or '='. Key and value can be any type (eg: String, int, Vector, etc.)"))
+					return null
+				else: 
+					key = token
+					token = ""
+			_:
+				if c == ' ' and not in_quotes: continue
+				token += c
+	return comp
+
+
+func _parse_array_arg(p_text: String):
+	var ended: bool
+	var comp: Array
+	var token = ""
+	var brackets: String
+	var in_quotes: bool
+	for i in range(1, p_text.length()):
+		var c: String = p_text[i]
+		if ended:
+			error("Failed to parse array argument: Founded text after array end: %s" % p_text.substr(i, p_text.length() - i))
+			return null
+		elif in_quotes:
+			token += c
+			if c == '"':
+				in_quotes = false
+		elif brackets:
+			token += c
+			if c == '"':
+				in_quotes = not in_quotes
+			elif c in ['(', '[', '{']:
+				brackets += c
+			elif c in [')', ']', '}'] and brackets.length() > 1:
+				if brackets[-1] == '(':
+					brackets = brackets.erase(brackets.rfind('('))
+				elif brackets[-1] == '[':
+					brackets = brackets.erase(brackets.rfind('['))
+				elif brackets[-1] == '{':
+					brackets = brackets.erase(brackets.rfind('{'))
+			elif brackets == '(' and c == ')':
+				token = _parse_vector_arg(token)
+				if token == null:
+					error("Failed to parse array argument: Parsed sub vector are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('('))
+			elif brackets == '[' and c == ']':
+				token = _parse_array_arg(token)
+				if token == null:
+					error("Failed to parse array argument: Parsed sub array are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('['))
+			elif brackets == '{' and c == '}':
+				token = _parse_dictionary_arg(token)
+				if token == null:
+					error("Failed to parse array argument: Parsed sub dictionary are null")
+					return null
+				brackets = brackets.erase(brackets.rfind('{'))
+		else: match c:
+			'"':
+				in_quotes = true
+				token += c
+			',', ' ', ']':
+				if p_text[i - 1] in [' ', ',', '[']:
+					if c == ']': ended = true
+					continue
+				else:
+					if token is String:
+						if token.is_valid_int(): token = token.to_int()
+						elif token.is_valid_float(): token = token.to_float()
+						elif _validate_const(token) != null: token = _validate_const(token)
+						else: token = token.trim_prefix('"').trim_suffix('"')
+					comp.append(token)
+					token = ''
+					if c == ']':
+						ended = true
+			'(', '[', '{':
+				brackets += c
+				token = c
+			_:
+				if c == ' ' and not in_quotes: continue
+				token += c
+	return comp
+
+
+# *** AUTOCOMPLETE
 
 ## Auto-completes a command or auto-correction on TAB.
 func _autocomplete() -> void:
 	if not _autocomplete_matches.is_empty():
-		var match: String = _autocomplete_matches[0]
-		_fill_entry(match)
+		var match_str: String = _autocomplete_matches[0]
+		_fill_entry(match_str)
 		_autocomplete_matches.remove_at(0)
-		_autocomplete_matches.push_back(match)
+		_autocomplete_matches.push_back(match_str)
+		_update_autocomplete()
+
+
+## Goes in the opposite direction for the autocomplete suggestion
+func _reverse_autocomplete():
+	if not _autocomplete_matches.is_empty():
+		var match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
+		_autocomplete_matches.remove_at(_autocomplete_matches.size() - 1)
+		_autocomplete_matches.insert(0, match_str)
+		match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
+		_fill_entry(match_str)
 		_update_autocomplete()
 
 
@@ -1001,34 +1426,14 @@ func _update_autocomplete() -> void:
 		argv.append("")
 	var command_name: String = argv[0]
 	var last_arg: int = argv.size() - 1
-
 	if _autocomplete_matches.is_empty() and not _entry.text.is_empty():
-		if last_arg == 0:
-			# Command name
-			var line: String = _entry.text
-			for k in get_command_names(true):
-				if k.begins_with(line):
-					_autocomplete_matches.append(k)
-			_autocomplete_matches.sort()
-		else:
-			# Arguments
-			var key := [command_name, last_arg]
-			if _argument_autocomplete_sources.has(key) and not argv[last_arg].is_empty():
-				var argument_values = _argument_autocomplete_sources[key].call()
-				if typeof(argument_values) < TYPE_ARRAY:
-					push_error("LimboConsole: Argument autocomplete source returned unsupported type: ",
-							type_string(typeof(argument_values)), " command: ", command_name)
-					argument_values = []
-				var matches: PackedStringArray = []
-				for value in argument_values:
-					if str(value).begins_with(argv[last_arg]):
-						matches.append(_entry.text.substr(0, _entry.text.length() - argv[last_arg].length()) + str(value))
-				matches.sort()
-				_autocomplete_matches.append_array(matches)
-			# History
-			for i in range(_history.size() - 1, -1, -1):
-				if _history[i].begins_with(_entry.text):
-					_autocomplete_matches.append(_history[i])
+		if last_arg == 0 and not argv[0].is_empty() \
+			and len(argv[0].split(" ")) <= 1:
+			_add_first_input_autocompletes(command_name)
+		elif last_arg != 0:
+			_add_argument_autocompletes(argv)
+			_add_subcommand_autocompletes(_entry.text)
+			_add_history_autocompletes()
 
 	if _autocomplete_matches.size() > 0 \
 			and _autocomplete_matches[0].length() > _entry.text.length() \
@@ -1036,6 +1441,76 @@ func _update_autocomplete() -> void:
 		_entry.autocomplete_hint = _autocomplete_matches[0].substr(_entry.text.length())
 	else:
 		_entry.autocomplete_hint = ""
+
+
+## Adds auto completes for the first index of a registered
+## commands when the command is split on " "
+func _add_first_input_autocompletes(command_name: String) -> void:
+	for cmd_name in get_command_names(true):
+		var first_input: String = cmd_name.split(" ")[0]
+		if first_input.begins_with(command_name) and \
+			 first_input not in _autocomplete_matches:
+				_autocomplete_matches.append(first_input)
+	_autocomplete_matches.sort()
+
+
+## Adds auto-completes based on user added arguments for a command. [br]
+## p_argv is expected to contain full command as the first element (including subcommands).
+func _add_argument_autocompletes(p_argv: PackedStringArray) -> void:
+	if p_argv.is_empty():
+		return
+	var command: String = p_argv[0]
+	var last_arg: int = p_argv.size() - 1
+	var key := [command, last_arg - 1] # Argument indices are 0-based.
+	if _argument_autocomplete_sources.has(key):
+		var argument_values = _argument_autocomplete_sources[key].call()
+		if not _validate_autocomplete_result(argument_values, command):
+			argument_values = []
+		var matches: PackedStringArray = []
+		for value in argument_values:
+			if str(value).begins_with(p_argv[last_arg]):
+				matches.append(_entry.text.substr(0, _entry.text.length() - p_argv[last_arg].length()) + str(value))
+		matches.sort()
+		_autocomplete_matches.append_array(matches)
+
+
+## Adds auto-completes based on the history
+func _add_history_autocompletes() -> void:
+	if _options.autocomplete_use_history_with_matches or \
+			len(_autocomplete_matches) == 0:
+		for i in range(_history.size() - 1, -1, -1):
+			if _history.get_entry(i).begins_with(_entry.text):
+				_autocomplete_matches.append(_history.get_entry(i))
+
+
+## Adds subcommand auto-complete suggestions based on registered commands
+## and the current user input
+func _add_subcommand_autocompletes(typed_val: String) -> void:
+	var command_names: PackedStringArray = get_command_names(true)
+	var typed_val_tokens: PackedStringArray = typed_val.split(" ")
+	var result: Dictionary = {} # Hashset. "autocomplete" => N/A
+	for cmd in command_names:
+		var cmd_split = cmd.split(" ")
+		if len(cmd_split) < len(typed_val_tokens):
+			continue
+
+		var last_match: int = 0
+		for i in len(typed_val_tokens):
+			if cmd_split[i] != typed_val_tokens[i]:
+				break
+			last_match += 1
+
+		if last_match < len(typed_val_tokens) - 1:
+			continue
+
+		if len(cmd_split) >= len(typed_val_tokens) \
+			and cmd_split[last_match].begins_with(typed_val_tokens[-1]):
+			var partial_cmd_arr: PackedStringArray = cmd_split.slice(0, last_match + 1)
+			result.get_or_add(" ".join(partial_cmd_arr))
+
+	var matches = result.keys()
+	matches.sort()
+	_autocomplete_matches.append_array(matches)
 
 
 func _clear_autocomplete() -> void:
@@ -1074,7 +1549,7 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 		var source: Callable = _argument_autocomplete_sources.get(key, Callable())
 		if source.is_valid():
 			accepted_values = source.call()
-		if accepted_values == null or typeof(accepted_values) < TYPE_ARRAY:
+		if accepted_values == null or not _validate_autocomplete_result(accepted_values, command_name):
 			continue
 		var fuzzy_hit: String = Util.fuzzy_match_string(p_argv[i], 2, accepted_values)
 		if not fuzzy_hit.is_empty():
@@ -1096,9 +1571,10 @@ func _show_console() -> void:
 	if not _control.visible and enabled:
 		_control.show()
 		_control_block.show()
-		_was_already_paused = get_tree().paused
-		if not _was_already_paused:
-			get_tree().paused = true
+		if _options.pause_when_open:
+			_was_already_paused = get_tree().paused
+			if not _was_already_paused:
+				get_tree().paused = true
 		_previous_gui_focus = get_viewport().gui_get_focus_owner()
 		_entry.grab_focus()
 		toggled.emit(true)
@@ -1108,8 +1584,10 @@ func _hide_console() -> void:
 	if _control.visible:
 		_control.hide()
 		_control_block.hide()
-		if not _was_already_paused:
-			get_tree().paused = false
+
+		if _options.pause_when_open:
+			if not _was_already_paused:
+				get_tree().paused = false
 		if is_instance_valid(_previous_gui_focus):
 			_previous_gui_focus.grab_focus()
 		toggled.emit(false)
@@ -1118,9 +1596,14 @@ func _hide_console() -> void:
 ## Returns true if the callable can be registered as a command.
 func _validate_callable(p_callable: Callable) -> bool:
 	var method_info: Dictionary = Util.get_method_info(p_callable)
-	if method_info.is_empty():
+	if p_callable.is_standard() and method_info.is_empty():
 		push_error("LimboConsole: Couldn't find method info for: " + p_callable.get_method())
 		return false
+	if p_callable.is_custom() and not method_info.is_empty() \
+		and method_info.get("name") == "<anonymous lambda>" \
+		and p_callable.get_bound_arguments_count() > 0:
+			push_error("LimboConsole: bound anonymous functions are unsupported")
+			return false
 
 	var ret := true
 	for arg in method_info.args:
@@ -1192,4 +1675,7 @@ func _on_entry_text_submitted(p_command: String) -> void:
 
 func _on_entry_text_changed() -> void:
 	_clear_autocomplete()
-	_update_autocomplete()
+	if not _entry.text.is_empty():
+		_update_autocomplete()
+	else:
+		_history_iter.reset()
