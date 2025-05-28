@@ -371,11 +371,10 @@ func unregister_command_precall(p_func_or_name) -> void:
 	_command_precalls.erase(cmd_name)
 
 
-## Registers an alias for a command (may include arguments).
+## Registers an alias for a command (may include arguments).## Registers an alias for command line. [br]
+## Alias may contain space-separated parts, e.g. "command sub1" which must match
+## against two subsequent arguments on the command line.
 func add_alias(p_alias: String, p_command_to_run: String) -> void:
-	if not p_alias.is_valid_identifier():
-		error("Invalid alias identifier.")
-		return
 	# It should be possible to override commands and existing aliases.
 	# It should be possible to create aliases for commands that are not yet registered,
 	# because some commands may be registered by local-to-scene scripts.
@@ -1287,6 +1286,13 @@ func _validate_callable(p_callable: Callable) -> bool:
 	return ret
 
 
+func _validate_autocomplete_result(p_result: Variant, p_command: String) -> bool:
+	if typeof(p_result) < TYPE_ARRAY:
+		push_error("LimboConsole: Argument autocomplete source failed: Expecting array but got: ",
+				type_string(typeof(p_result)), " command: ", p_command)
+		return false
+	return true
+
 # Command precalls support
 func _validate_precall(p_precall: Callable) -> bool:
 	var method_info: Dictionary = Util.get_method_info(p_precall)
@@ -1321,30 +1327,17 @@ func _fill_entry(p_line: String) -> void:
 	_entry.set_caret_column(p_line.length())
 
 
-func _fill_entry_from_history() -> void:
-	# Now scrolling stops when reaching the end or beginning of the history
-	_hist_idx = clampi(_hist_idx, -1, _history.size() - 1)
-	if _hist_idx < 0:
-		_fill_entry("")
-	else:
-		_fill_entry(_history[_history.size() - _hist_idx - 1])
-	_clear_autocomplete()
-	_update_autocomplete()
-
-
-func _push_history(p_line: String) -> void:
-	var idx: int = _history.find(p_line)
-	if idx != -1:
-		_history.remove_at(idx)
-	_history.append(p_line)
-	_hist_idx = -1
-
-
 func _on_entry_text_submitted(p_command: String) -> void:
-	_clear_autocomplete()
-	_fill_entry("")
-	execute_command(p_command)
-	_update_autocomplete()
+	if _history_gui.visible:
+		_history_gui.visible = false
+		_clear_autocomplete()
+		_fill_entry(_history_gui.get_current_text())
+		_update_autocomplete()
+	else:
+		_clear_autocomplete()
+		_fill_entry("")
+		execute_command(p_command)
+		_update_autocomplete()
 
 
 func _on_entry_text_changed() -> void:
