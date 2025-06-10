@@ -421,7 +421,7 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		if failed:
 			_suggest_argument_corrections(expanded_argv)
 	else:
-		usage(argv[0])
+		usage(command_name)
 	if _options.sparse_mode:
 		print_line("")
 	_silent = false
