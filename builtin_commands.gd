@@ -119,6 +119,16 @@ static func cmd_help(p_command_name: String = "") -> Error:
 
 static func cmd_log(p_num_lines: int = 10) -> Error:
 	var fn: String = ProjectSettings.get_setting("debug/file_logging/log_path")
+	if (
+			ProjectSettings.has_setting("debug/file_logging/log_path.debug")
+			and OS.is_debug_build()
+	):
+		fn = ProjectSettings.get_setting("debug/file_logging/log_path.debug")
+	elif (
+			ProjectSettings.has_setting("debug/file_logging/log_path.release")
+			and not OS.is_debug_build()
+	):
+		fn = ProjectSettings.get_setting("debug/file_logging/log_path.release")
 	var file = FileAccess.open(fn, FileAccess.READ)
 	if not file:
 		LimboConsole.error("Can't open file: " + fn)
