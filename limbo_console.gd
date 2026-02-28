@@ -438,6 +438,7 @@ func execute_script(p_file: String, p_silent: bool = true) -> void:
 			LimboConsole.execute_command(line, p_silent)
 	else:
 		LimboConsole.error("File not found: " + p_file.trim_prefix("user://"))
+	_resume_scroll_following.call_deferred()
 
 
 ## Formats the tip text (hopefully useful ;).
@@ -572,10 +573,37 @@ func _build_gui() -> void:
 	_output = RichTextLabel.new()
 	_output.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_output.scroll_active = true
-	_output.scroll_following = true
+	_output.scroll_following = false # To implement custom scroll following behavior
 	_output.bbcode_enabled = true
 	_output.focus_mode = Control.FOCUS_CLICK
 	vbox.add_child(_output)
+
+	# To allow user to pause scrolling, we need to track the scroll bar ourselves
+	var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
+	var scroll_history: Dictionary = {
+		"last_value": 1.0,
+		"last_height": scroll_bar.max_value - scroll_bar.page,
+		"correction_queued": false,
+	}
+	var correct_scroll := func() -> void:
+		scroll_history["correction_queued"] = false
+		scroll_history["last_height"] = scroll_bar.max_value - scroll_bar.page
+		if scroll_history["last_value"] == 1.0:
+			_resume_scroll_following()
+	scroll_bar.value_changed.connect(func(value):
+		# Scroll bar height changes multiple times on printing new lines
+		var current_height := scroll_bar.max_value - scroll_bar.page
+		if current_height != scroll_history["last_height"]:
+			if not scroll_history["correction_queued"]:
+				scroll_history["correction_queued"] = true
+				correct_scroll.call_deferred()
+		else:
+			# Scroll bar is done moving from prints, so it must have been moved by user. Thus, we update the last value
+			if scroll_bar.max_value - scroll_bar.page > 0:
+				scroll_history["last_value"] = scroll_bar.value / (scroll_bar.max_value - scroll_bar.page)
+			else:
+				scroll_history["last_value"] = 1.0
+	)
 
 	_entry = CommandEntry.new()
 	vbox.add_child(_entry)
@@ -1072,6 +1100,7 @@ func _on_entry_text_submitted(p_command: String) -> void:
 		_clear_autocomplete()
 		_fill_entry("")
 		execute_command(p_command)
+		_resume_scroll_following.call_deferred()
 		_update_autocomplete()
 
 
@@ -1081,3 +1110,10 @@ func _on_entry_text_changed() -> void:
 		_update_autocomplete()
 	else:
 		_history_iter.reset()
+
+
+## Resumes the scroll following behavior. Should generally be called using
+## call_deferred as the scroll bar does not update immediately.
+func _resume_scroll_following() -> void:
+	var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
+	scroll_bar.value = scroll_bar.max_value
