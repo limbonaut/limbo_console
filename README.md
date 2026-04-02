@@ -66,6 +66,26 @@ LimboConsole.add_argument_autocomplete_source("teleport", 0,
                 func(node): return node.name)
 )
 ```
+You can also pass in previous args to autocomplete sources:
+```gdscript
+LimboConsole.register_command(spawn, "spawn", "spawn an item on this level")
+LimboConsole.add_argument_autocomplete_source(
+	"spawn",
+	0,
+	func(): return ["enemy", "weapon"]
+)
+LimboConsole.add_argument_autocomplete_source(
+	"spawn",
+	0,
+	func(category: String):
+		if category == "enemy":
+			return ["minion", "boss"]
+		if category == "weapon":
+			return ["sword", "wand"]
+)
+func spawn(category: String, object: String):
+	print(category, object)
+```
 
 ### Using in C#
 

@@ -381,7 +381,20 @@ func add_argument_autocomplete_source(p_command: String, p_argument: int, p_sour
 	if p_argument < 0 or p_argument > 4:
 		push_error("LimboConsole: Can't add autocomplete source: argument index out of bounds: ", p_argument)
 		return
-	var argument_values = p_source.call()
+
+	var method_info := Util.get_method_info(p_source)
+	var arg_count: int = 0 if method_info.is_empty() else method_info.args.size()
+	var argument_values
+	if arg_count == 0:
+		# No args, call as-is
+		argument_values = p_source.call()
+	else:
+		# Pass in dummy args
+		var test_args: PackedStringArray = []
+		test_args.resize(p_argument)
+		test_args.fill("")
+		argument_values = p_source.callv(test_args)
+
 	if not _validate_autocomplete_result(argument_values, p_command):
 		push_error("LimboConsole: Failed to add argument autocomplete source: Callable must return an array.")
 		return
@@ -927,9 +940,23 @@ func _add_argument_autocompletes(p_argv: PackedStringArray) -> void:
 	var last_arg: int = p_argv.size() - 1
 	var key := [command, last_arg - 1] # Argument indices are 0-based.
 	if _argument_autocomplete_sources.has(key):
-		var argument_values = _argument_autocomplete_sources[key].call()
+		# Pass previous arguments (excluding command and current incomplete arg) to the callable
+		var auto_complete_callable: Callable = _argument_autocomplete_sources[key]
+		var method_info := Util.get_method_info(auto_complete_callable)
+		var arg_count: int = 0 if method_info.is_empty() else method_info.args.size()
+
+		var argument_values: Array
+		if arg_count == 0:
+			# No args, call as-is
+			argument_values = auto_complete_callable.call()
+		else:
+			# Pass previous arguments to the callable
+			var prev_args := p_argv.slice(1, last_arg)
+			argument_values = auto_complete_callable.callv(prev_args)
+
 		if not _validate_autocomplete_result(argument_values, command):
 			argument_values = []
+
 		var matches: PackedStringArray = []
 		for value in argument_values:
 			if str(value).begins_with(p_argv[last_arg]):
