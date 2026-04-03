@@ -17,31 +17,42 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-tags: true
 
       - name: Initialize version
         shell: bash
         run: |
-          echo "VERSION=$( (git describe --tags --exact-match HEAD || git rev-parse --short HEAD) | sed 's/\(.*\)-\(.*\)/\1.\2/g' )" >> "$GITHUB_ENV"
+          VERSION_TAG="$( (git describe --tags --exact-match HEAD || git rev-parse --short HEAD) | sed 's/\(.*\)-\(.*\)/\1.\2/g' )"
+          VERSION=${VERSION_TAG#v}
+          echo "VERSION_TAG=${VERSION_TAG}" >> "$GITHUB_ENV"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Update plugin version
+        shell: bash
+        run: sed -i "s|version=\"<VERSION>\"|version=\"${VERSION}\"|g" plugin.cfg
 
       - name: Create artifact
         shell: bash
         run: |
+          mkdir -p temp/addons/limbo_console/
+          cp -r *.gd *.cfg *.uid res/ temp/addons/limbo_console/
           mkdir out/
-          git archive --prefix="addons/limbo_console/" --output="out/limbo_console_${VERSION}.zip" ${{ github.ref }}
+          cd temp && zip -r "../out/limbo_console_${VERSION_TAG}.zip" addons/
 
       - name: Generate changelog
         id: changelog
         uses: metcalfc/changelog-generator@v4.3.1
         with:
-          myToken: ${{ secrets.GITHUB_TOKEN }}
+          myToken: ${{ secrets.GH_TOKEN }}
           base-ref: ${{ inputs.base-ref }}
 
       - name: Draft Release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref }}
-          name: ${{ env.VERSION }}
+          name: ${{ env.VERSION_TAG }}
           body: ${{ steps.changelog.outputs.changelog }}
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: true
-          artifacts: "out/limbo_console_${{ env.VERSION }}.zip"
+          artifacts: "out/limbo_console_${{ env.VERSION_TAG }}.zip"
