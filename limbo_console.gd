@@ -54,6 +54,7 @@ var _argument_autocomplete_sources: Dictionary # [command_name, arg_idx] => Call
 var _history: CommandHistory
 var _history_iter: CommandHistory.WrappingIterator
 var _autocomplete_matches: PackedStringArray
+var _autocomplete_counter := 0
 var _eval_inputs: Dictionary
 var _silent: bool = false
 var _was_already_paused: bool = false
@@ -117,10 +118,12 @@ func _handle_command_input(p_event: InputEvent) -> void:
 		_fill_entry(_history_iter.next())
 		_clear_autocomplete()
 		_update_autocomplete()
-	elif p_event.is_action_pressed("limbo_auto_complete_reverse"):
+	elif p_event.is_action_pressed("limbo_auto_complete_reverse", false, true):
 		_reverse_autocomplete()
-	elif p_event.keycode == KEY_TAB:
+	elif p_event.is_action_pressed("limbo_auto_complete_forward", false, true):
 		_autocomplete()
+	elif p_event.is_action_pressed("limbo_auto_complete_with_list", false, true):
+		_autocomplete_with_list()
 	elif p_event.keycode == KEY_PAGEUP:
 		var scroll_bar: VScrollBar = _output.get_v_scroll_bar()
 		scroll_bar.value -= scroll_bar.page
@@ -272,6 +275,19 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 	_output.text += p_line + "\n"
 	if p_stdout:
 		print(Util.bbcode_strip(p_line))
+
+
+## Prints array of string in constant length columns
+func print_in_columns(strings, separator_size = 3):
+	var column_size = 0
+	for s in strings:
+		if s.length() > column_size:
+			column_size = s.length()
+	column_size += separator_size
+	var string = ""
+	for s in strings:
+		string += s.rpad(column_size)
+	print_line(string)
 
 
 ## Registers a callable as a command, with optional name and description.
@@ -881,6 +897,31 @@ func _reverse_autocomplete():
 		match_str = _autocomplete_matches[_autocomplete_matches.size() - 1]
 		_fill_entry(match_str)
 		_update_autocomplete()
+
+
+## Auto-completes with propositions list on second pressing TAB and without cycles
+func _autocomplete_with_list() -> void:
+	var matches_count = _autocomplete_matches.size()
+	if matches_count == 0:
+		_autocomplete_counter = 0
+		return
+	elif matches_count == 1:
+		var match_str: String = _autocomplete_matches[0]
+		_fill_entry(match_str + " ")
+		_autocomplete_matches.clear()
+		_update_autocomplete()
+		_autocomplete_counter = 0
+	else:
+		_autocomplete_counter += 1
+		if _autocomplete_counter == 2:
+			_autocomplete_counter = 0
+			var argc = _entry.text.split(" ").size() - 1
+			var sugestions = []
+			for sugestion in _autocomplete_matches:
+				var sugestion_argv = sugestion.split(" ", true, argc)
+				if sugestion_argv.size() > argc:
+					sugestions.append(sugestion_argv[argc])
+			print_in_columns(sugestions)
 
 
 ## Updates autocomplete suggestions and hint based on user input.
