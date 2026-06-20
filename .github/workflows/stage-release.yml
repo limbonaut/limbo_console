@@ -1,0 +1,59 @@
+name: Stage Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, e.g. 0.8.0"
+        type: string
+        required: true
+      base-ref:
+        description: "Branch to release from"
+        type: string
+        default: master
+
+permissions: {}
+
+concurrency:
+  group: stage-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  stage-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+      TAG: v${{ inputs.version }}
+      BRANCH: release/v${{ inputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Stage release
+        run: .github/scripts/stage-release.sh "$VERSION" "${{ inputs.base-ref }}"
+
+      - name: Push branch and tag
+        run: |
+          git push origin "$BRANCH"
+          git push origin "$TAG"
+
+      - name: Create artifact
+        run: |
+          mkdir out/
+          git archive --prefix="addons/limbo_console/" --output="out/limbo_console_${TAG}.zip" "${TAG}"
+
+      - name: Draft release
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
+        with:
+          tag: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: true
+          generateReleaseNotes: true
+          artifacts: "out/limbo_console_${{ env.TAG }}.zip"
