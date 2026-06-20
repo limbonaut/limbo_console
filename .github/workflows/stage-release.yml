@@ -26,7 +26,7 @@ jobs:
       BRANCH: release/v${{ inputs.version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Configure Git identity
         run: |
@@ -48,13 +48,13 @@ jobs:
 
       - name: Generate changelog
         id: changelog
-        uses: metcalfc/changelog-generator@v4.3.1
+        uses: metcalfc/changelog-generator@0440d0932f9a0dd1cc9ecd8412830761351323bd # v4.7.0
         with:
           myToken: ${{ secrets.GITHUB_TOKEN }}
           head-ref: ${{ env.TAG }}
 
       - name: Draft release
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
         with:
           tag: ${{ env.TAG }}
           name: ${{ env.TAG }}
