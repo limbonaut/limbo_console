@@ -3,6 +3,20 @@ extends EditorPlugin
 
 const ConsoleOptions := preload("res://addons/limbo_console/console_options.gd")
 const ConfigMapper := preload("res://addons/limbo_console/config_mapper.gd")
+const ConsoleExportPlugin := preload("res://addons/limbo_console/export_plugin.gd")
+
+var _export_plugin: EditorExportPlugin
+
+
+func _enter_tree() -> void:
+	if _export_plugin == null:
+		_export_plugin = ConsoleExportPlugin.new()
+	add_export_plugin(_export_plugin)
+
+
+func _exit_tree() -> void:
+	remove_export_plugin(_export_plugin)
+
 
 func _enable_plugin() -> void:
 	add_autoload_singleton("LimboConsole", "res://addons/limbo_console/limbo_console.gd")
@@ -24,31 +38,31 @@ func _enable_plugin() -> void:
 			"events": [key_event],
 		})
 		do_project_setting_save = true
-		
+
 	if not ProjectSettings.has_setting("input/limbo_auto_complete_reverse"):
 		print("LimboConsole: Adding \"limbo_auto_complete_reverse\" input action to project settings...")
 		var key_event = InputEventKey.new()
 		key_event.keycode = KEY_TAB
 		key_event.shift_pressed = true
-		
+
 		ProjectSettings.set_setting("input/limbo_auto_complete_reverse", {
 			"deadzone": 0.5,
 			"events": [key_event],
 		})
 		do_project_setting_save = true
-	
+
 	if not ProjectSettings.has_setting("input/limbo_console_search_history"):
 		print("LimboConsole: Adding \"limbo_console_search_history\" input action to project settings...")
 		var key_event = InputEventKey.new()
 		key_event.keycode = KEY_R
 		key_event.ctrl_pressed = true
-		
+
 		ProjectSettings.set_setting("input/limbo_console_search_history", {
 			"deadzone": 0.5,
 			"events": [key_event],
 		})
 		do_project_setting_save = true
-		
+
 	if do_project_setting_save:
 		ProjectSettings.save()
 
