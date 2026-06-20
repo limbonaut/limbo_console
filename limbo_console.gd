@@ -275,11 +275,11 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 
 
 ## Registers a callable as a command, with optional name and description.
-## Name can have up to 4 space-separated identifiers (e.g., "command sub1 sub2 sub3"),
-## using letters, digits, or underscores, starting with a non-digit.
+## Name can have up to 4 space-separated identifiers (e.g., "command sub1 sub2 sub3").
+## A valid command identifier may contain only letters, digits, periods, and underscores (_).
 func register_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
 	if p_name and not Util.is_valid_command_sequence(p_name):
-		push_error("LimboConsole: Failed to register command: %s. Name can have up to 4 space-separated identifiers, using letters, digits, or underscores, starting with non-digit." % [p_name])
+		push_error("LimboConsole: Failed to register command: %s. Name can have up to 4 space-separated identifiers each containing only letters, digits, periods, and underscores (_)." % [p_name])
 		return
 
 	if not _validate_callable(p_func):
