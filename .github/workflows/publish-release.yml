@@ -1,0 +1,40 @@
+name: Publish Release
+on:
+  release:
+    types: [released]
+
+permissions: {}
+
+concurrency:
+  group: publish-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  merge-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      BRANCH: release/${{ github.event.release.tag_name }}
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge release branch into master
+        run: |
+          if ! git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+            echo "::warning::No $BRANCH branch found; nothing to merge. Was this a manual release?"
+            exit 0
+          fi
+          git fetch origin "$BRANCH"
+          git merge --ff-only FETCH_HEAD
+          git push origin HEAD:master
+          git push origin --delete "$BRANCH"
