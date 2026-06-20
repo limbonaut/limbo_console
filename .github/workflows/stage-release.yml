@@ -46,19 +46,12 @@ jobs:
           mkdir out/
           git archive --prefix="addons/limbo_console/" --output="out/limbo_console_${TAG}.zip" "${TAG}"
 
-      - name: Generate changelog
-        id: changelog
-        uses: metcalfc/changelog-generator@0440d0932f9a0dd1cc9ecd8412830761351323bd # v4.7.0
-        with:
-          myToken: ${{ secrets.GITHUB_TOKEN }}
-          head-ref: ${{ env.TAG }}
-
       - name: Draft release
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
         with:
           tag: ${{ env.TAG }}
           name: ${{ env.TAG }}
-          body: ${{ steps.changelog.outputs.changelog }}
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: true
+          generateReleaseNotes: true
           artifacts: "out/limbo_console_${{ env.TAG }}.zip"
