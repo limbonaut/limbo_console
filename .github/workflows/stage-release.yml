@@ -1,47 +1,64 @@
-name: Draft Release
+name: Stage Release
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
-      base-ref:
+      version:
+        description: "Release version, e.g. 0.8.0"
         type: string
-        default: ""
+        required: true
+      base-ref:
+        description: "Branch to release from"
+        type: string
+        default: master
+
+concurrency:
+  group: stage-release-${{ inputs.version }}
+  cancel-in-progress: false
 
 jobs:
-  draft-release:
+  stage-release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+      TAG: v${{ inputs.version }}
+      BRANCH: release/v${{ inputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Initialize version
-        shell: bash
+      - name: Configure Git identity
         run: |
-          echo "VERSION=$( (git describe --tags --exact-match HEAD || git rev-parse --short HEAD) | sed 's/\(.*\)-\(.*\)/\1.\2/g' )" >> "$GITHUB_ENV"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Stage release
+        run: .github/scripts/stage-release.sh "$VERSION" "${{ inputs.base-ref }}"
+
+      - name: Push branch and tag
+        run: |
+          git push origin "$BRANCH"
+          git push origin "$TAG"
 
       - name: Create artifact
-        shell: bash
         run: |
           mkdir out/
-          git archive --prefix="addons/limbo_console/" --output="out/limbo_console_${VERSION}.zip" ${{ github.ref }}
+          git archive --prefix="addons/limbo_console/" --output="out/limbo_console_${TAG}.zip" "${TAG}"
 
       - name: Generate changelog
         id: changelog
         uses: metcalfc/changelog-generator@v4.3.1
         with:
           myToken: ${{ secrets.GITHUB_TOKEN }}
-          base-ref: ${{ inputs.base-ref }}
+          head-ref: ${{ env.TAG }}
 
-      - name: Draft Release
+      - name: Draft release
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ github.ref }}
-          name: ${{ env.VERSION }}
+          tag: ${{ env.TAG }}
+          name: ${{ env.TAG }}
           body: ${{ steps.changelog.outputs.changelog }}
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: true
-          artifacts: "out/limbo_console_${{ env.VERSION }}.zip"
+          artifacts: "out/limbo_console_${{ env.TAG }}.zip"
