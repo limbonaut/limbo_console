@@ -11,6 +11,8 @@ on:
         type: string
         default: master
 
+permissions: {}
+
 concurrency:
   group: stage-release-${{ inputs.version }}
   cancel-in-progress: false
