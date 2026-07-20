@@ -293,6 +293,7 @@ func register_command(p_func: Callable, p_name: String = "", p_desc: String = ""
 		name = p_func.get_method().trim_prefix("_").trim_prefix("cmd_")
 	if not OS.is_debug_build() and _options.commands_disabled_in_release.has(name):
 		return
+		
 	if _commands.has(name):
 		push_error("LimboConsole: Command already registered: " + p_name)
 		return
@@ -310,7 +311,7 @@ func unregister_command(p_func_or_name) -> void:
 			cmd_name = key
 	elif p_func_or_name is String:
 		cmd_name = p_func_or_name
-	if cmd_name.is_empty() or not _commands.has(cmd_name):
+	if (cmd_name.is_empty() or not _commands.has(cmd_name)) and _options.error_unknown_unregister:
 		push_error("LimboConsole: Unregister failed - command not found: " % [p_func_or_name])
 		return
 
