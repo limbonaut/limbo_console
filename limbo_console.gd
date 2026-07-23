@@ -277,7 +277,7 @@ func print_line(p_line: String, p_stdout: bool = _options.print_to_stdout) -> vo
 ## Registers a callable as a command, with optional name and description.
 ## Name can have up to 4 space-separated identifiers (e.g., "command sub1 sub2 sub3"),
 ## using letters, digits, or underscores, starting with a non-digit.
-func register_command(p_func: Callable, p_name: String = "", p_desc: String = "", force: bool = false) -> void:
+func register_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
 	if p_name and not Util.is_valid_command_sequence(p_name):
 		push_error("LimboConsole: Failed to register command: %s. Name can have up to 4 space-separated identifiers, using letters, digits, or underscores, starting with non-digit." % [p_name])
 		return
@@ -293,13 +293,23 @@ func register_command(p_func: Callable, p_name: String = "", p_desc: String = ""
 		name = p_func.get_method().trim_prefix("_").trim_prefix("cmd_")
 	if not OS.is_debug_build() and _options.commands_disabled_in_release.has(name):
 		return
-	if _commands.has(name) and not force:
+	if _commands.has(name):
 		push_error("LimboConsole: Command already registered: " + p_name)
 		return
 	# Note: It should be possible to have an alias with the same name.
 	_commands[name] = p_func
 	_command_descriptions[name] = p_desc
 
+## Same as register_command but will unregister any existing command of the same name
+func overwrite_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
+	var name: String = p_name
+	if name.is_empty():
+		name = p_func.get_method().trim_prefix("_").trim_prefix("cmd_")
+	
+	if _commands.has(name):
+		unregister_command(name)
+	
+	register_command(p_func, p_name, p_desc)
 
 ## Unregisters the command specified by its name or a callable.
 func unregister_command(p_func_or_name) -> void:
