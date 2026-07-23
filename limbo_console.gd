@@ -301,6 +301,16 @@ func register_command(p_func: Callable, p_name: String = "", p_desc: String = ""
 	_commands[name] = p_func
 	_command_descriptions[name] = p_desc
 
+## Same as register_command but will unregister any existing command of the same name
+func overwrite_command(p_func: Callable, p_name: String = "", p_desc: String = "") -> void:
+	var name: String = p_name
+	if name.is_empty():
+		name = p_func.get_method().trim_prefix("_").trim_prefix("cmd_")
+	
+	if _commands.has(name):
+		unregister_command(name)
+	
+	register_command(p_func, p_name, p_desc)
 
 ## Unregisters the command specified by its name or a callable.
 func unregister_command(p_func_or_name) -> void:
