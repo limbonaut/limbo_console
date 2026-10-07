@@ -416,7 +416,8 @@ func execute_command(p_command_line: String, p_silent: bool = false) -> void:
 		var history_line: String = " ".join(argv)
 		_history.push_entry(history_line)
 		info("[color=%s][b]>[/b] %s[/color] %s" %
-				[_output_command_color.to_html(), argv[0], " ".join(argv.slice(1))])
+				[_output_command_color.to_html(), Util.bbcode_escape(argv[0]),
+				Util.bbcode_escape(" ".join(argv.slice(1)))])
 
 	if not has_command(command_name):
 		error("Unknown command: " + command_name)
