@@ -18,6 +18,7 @@ static func register_commands() -> void:
 	LimboConsole.register_command(cmd_help, "help", "show command info")
 	LimboConsole.register_command(cmd_log, "log", "show recent log entries")
 	LimboConsole.register_command(cmd_quit, "quit", "exit the application")
+	LimboConsole.register_command(cmd_reload, "reload", "reload the currently loaded scene")
 	LimboConsole.register_command(cmd_unalias, "unalias", "remove command alias")
 	LimboConsole.register_command(cmd_vsync, "vsync", "adjust V-Sync")
 	LimboConsole.register_command(LimboConsole.erase_history, "erase_history", "erases current history and persisted history")
@@ -135,6 +136,10 @@ static func cmd_log(p_num_lines: int = 10) -> Error:
 
 static func cmd_quit() -> void:
 	LimboConsole.get_tree().quit()
+
+
+static func cmd_reload() -> void:
+	LimboConsole.get_tree().reload_current_scene()
 
 
 static func cmd_unalias(p_alias: String) -> void:
