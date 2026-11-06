@@ -3,3 +3,4 @@
 
 # Ignore hidden files on export
 .* export-ignore
+/tests export-ignore

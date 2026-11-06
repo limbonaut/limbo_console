@@ -778,8 +778,9 @@ func _parse_argv(p_argv: PackedStringArray, p_callable: Callable, r_args: Array)
 
 	# Join all arguments into a single string if the callable accepts a single string argument.
 	if max_args - num_bound_args == 1 and method_info.args[0].type == TYPE_STRING:
-		if p_argv.size() == 1 and num_with_defaults == max_args:
+		if p_argv.size() == 1 and num_bound_args == 0 and num_with_defaults == max_args:
 			# No input and the argument has a default value: let the method use it.
+			# Skipped for bound callables, as bound arguments would shift into the first parameter.
 			return true
 		var a: String = " ".join(p_argv.slice(1))
 		if a.left(1) == '"' and a.right(1) == '"':
