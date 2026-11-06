@@ -570,6 +570,7 @@ func _build_gui() -> void:
 	var con := Control.new() # To block mouse input.
 	_control_block = con
 	con.set_anchors_preset(Control.PRESET_FULL_RECT)
+	con.gui_input.connect(_on_control_block_gui_input)
 	add_child(con)
 
 	var panel := PanelContainer.new()
@@ -1045,6 +1046,14 @@ func _suggest_argument_corrections(p_argv: PackedStringArray) -> void:
 
 
 # *** MISC
+
+
+func _on_control_block_gui_input(p_event: InputEvent) -> void:
+	# Clicking outside the console panel closes the console.
+	var mb := p_event as InputEventMouseButton
+	if mb and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+		close_console()
+		_control_block.accept_event()
 
 
 func _show_console() -> void:
