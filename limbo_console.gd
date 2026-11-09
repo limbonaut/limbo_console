@@ -60,6 +60,7 @@ var _was_already_paused: bool = false
 
 var _open_t: float = 0.0
 var _open_speed: float = 5.0
+var _slid_at_usec: int = 0
 var _is_open: bool = false
 
 
@@ -165,14 +166,17 @@ func _input(p_event: InputEvent) -> void:
 		_handle_command_input(p_event)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
+	var now := Time.get_ticks_usec()
+	var slide_step_sec := clampf((now - _slid_at_usec) / 1000000.0, 0.0, 0.1) if _slid_at_usec > 0 else 0.0
+	_slid_at_usec = now
 	var done_sliding := false
 	if _is_open:
-		_open_t = move_toward(_open_t, 1.0, _open_speed * delta * 1.0/Engine.time_scale)
+		_open_t = move_toward(_open_t, 1.0, _open_speed * slide_step_sec)
 		if _open_t == 1.0:
 			done_sliding = true
 	else: # We close faster than opening.
-		_open_t = move_toward(_open_t, 0.0, _open_speed * delta * 1.5 * 1.0/Engine.time_scale)
+		_open_t = move_toward(_open_t, 0.0, _open_speed * slide_step_sec * 1.5)
 		if is_zero_approx(_open_t):
 			done_sliding = true
 
@@ -181,6 +185,7 @@ func _process(delta: float) -> void:
 	_control.position.y = new_y
 
 	if done_sliding:
+		_slid_at_usec = 0
 		set_process(false)
 		if not _is_open:
 			_hide_console()
